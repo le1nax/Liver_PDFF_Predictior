@@ -1,0 +1,128 @@
+# Configuration file for fat fraction prediction training
+
+# Data settings
+data:
+  data_dir: "/home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/preprocessed_images_fixed3"  # CHANGE THIS to your data directory
+
+  # Directory structure mode - choose ONE option:
+
+  # OPTION 1 (EASIEST): Point directly to preprocessing output
+  use_patient_subdirs: true  # Set to true to use patient_id/ folders directly
+
+  # OPTION 2: Single flat directory (after organizing with symlinks/copy)
+  use_subdirs: false  # Set to true for type-based subdirectories (t2_images/, etc.)
+
+  # File naming (for Options 1 & 2)
+  # Files should be named: patientID_t2_aligned.nii.gz, patientID_ff_normalized.nii.gz, patientID_segmentation.nii.gz
+  t2_suffix: "_t2_aligned"
+  ff_suffix: "_ff_normalized"
+  mask_suffix: "_segmentation"
+
+  # For Option 3: Type-based subdirectories (use_subdirs: true)
+  t2_subdir: "t2_images"
+  ff_subdir: "fat_fraction_maps"
+  mask_subdir: "liver_masks"
+
+  # Data splits
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+  random_seed: 42
+
+  # Patch-based training (set to false to use full volumes)
+  use_patches: false
+  patch_size: [64, 128, 128]  # [depth, height, width]
+
+  # Optional log transform for T2 intensity (applied before normalization)
+  log_t2: false
+
+  # Fat-aware patch sampling (only used when use_patches: true)
+  fat_patch_sampling:
+    enabled: false
+    bin_edges: [0.0, 0.1, 0.2, 1.0]
+    bin_probs: [0.2, 0.3, 0.5]
+    max_attempts: 20
+
+  # Mask erosion (shrinks the liver mask to avoid edge effects)
+  mask_erosion: 3  # Number of erosion iterations (0 = no erosion, 3 ≈ 3 pixels)
+
+  # Spatial augmentations (applied to T2, FF, and mask together)
+  augment: true
+  flip_prob: 0.5
+  rotate_prob: 0.2
+  rotate_angle_min: 1.0
+  rotate_angle_max: 15.0
+
+# Model architecture
+model:
+  type: "standard"  # "standard" or "lightweight"
+  n_channels: 1  # Number of input channels (1 for T2 MRI)
+  n_outputs: 1   # Number of output channels (1 for fat fraction)
+  base_channels: 32  # Base number of feature channels (reduce if memory issues)
+  trilinear: true  # Use trilinear upsampling (false for transposed conv)
+  depth: 3  # Number of downsampling layers (3 = min size 8x8x8, 4 = min size 16x16x16)
+
+# Loss function
+loss:
+  type: "combined"  # "mse", "l1", "smooth_l1", "combined", "weighted", "continuous_weighted"
+
+  # For combined loss
+  mse_weight: 1.0
+  l1_weight: 0.0
+  ssim_weight: 0.0  # Add structural similarity loss
+  smooth_l1_weight: 0.0
+  mean_ff_weight: 0.1  # Auxiliary masked-mean FF loss
+
+  # For weighted loss
+  # base_loss: "mse"
+  # high_ff_threshold: 0.15  # Threshold for high fat fraction
+  # high_ff_weight: 2.0  # Weight for high FF regions
+
+  # For continuous weighted loss
+  # base_loss: "smooth_l1"
+  # alpha: 4.0
+  # gamma: 2.0
+  # max_weight: 6.0
+
+  reduction: "mean"
+
+# Optimizer settings
+optimizer:
+  type: "adamw"  # "adam", "adamw", "sgd"
+  lr: 0.0001
+  weight_decay: 0.01  # AdamW works best with 0.01-0.1 (much higher than Adam)
+
+  # For Adam/AdamW
+  betas: [0.9, 0.999]
+
+  # For SGD
+  # momentum: 0.9
+
+# Learning rate scheduler
+scheduler:
+  type: "cosine"  # "none", "step", "cosine", "reduce_on_plateau"
+
+  # For ReduceLROnPlateau
+  factor: 0.5
+  patience: 5  # Reduced from 10 for faster adaptation
+
+  # For StepLR
+  # step_size: 30
+  # gamma: 0.1
+
+  # For CosineAnnealingLR
+  # eta_min: 0.000001
+
+# Training settings
+training:
+  num_epochs: 150  # Medical imaging often benefits from longer training
+  batch_size: 3  # Reduce to 1 if out of memory
+  num_workers: 4
+  gradient_clip: 1.0  # Set to 0 to disable
+
+  # Early stopping
+  early_stopping_patience: 25  # Increased to match longer training
+  early_stopping_delta: 0.0001
+
+# Output directory for checkpoints and logs
+output_dir: "./outputs/experiment_007"

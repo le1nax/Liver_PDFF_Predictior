@@ -1,0 +1,15 @@
+# Example inference YAML file structure
+# This file will be automatically generated during training
+
+test_cases:
+- patient_id: '9157103201'
+  t2_image: /home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/preprocessed_images/9157103201/9157103201_t2_aligned.nii.gz
+  ground_truth: /home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/preprocessed_images/9157103201/9157103201_ff_normalized.nii.gz
+  mask: /home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/preprocessed_images/9157103201/9157103201_segmentation.nii.gz
+
+- patient_id: '9143779201'
+  t2_image: /home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/preprocessed_images/9143779201/9143779201_t2_aligned.nii.gz
+  ground_truth: /home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/preprocessed_images/9143779201/9143779201_ff_normalized.nii.gz
+  mask: /home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/preprocessed_images/9143779201/9143779201_segmentation.nii.gz
+
+# ... more test cases ...

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>T2 + FF Viewer</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="header">
+        <div>
+          <p class="eyebrow">Liver FF Regression</p>
+          <h1>Original T2 + FF Overlay Viewer</h1>
+          <p class="subtitle">
+            Inspect original T2 volumes and target fat-fraction maps with mask overlays.
+          </p>
+        </div>
+        <div class="controls">
+          <label class="control">
+            <span>Patient</span>
+            <select id="patientSelect"></select>
+          </label>
+          <button id="augmentBtn" class="ghost">Random Augment</button>
+          <button id="refreshBtn" class="ghost">Reload List</button>
+        </div>
+      </header>
+
+      <main class="grid">
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Original T2</h2>
+              <p id="t2Meta" class="meta">--</p>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="t2Overlay" checked />
+              <span>Overlay mask</span>
+            </label>
+          </div>
+          <canvas id="t2Canvas"></canvas>
+          <div class="slider">
+            <input type="range" id="t2Slice" min="0" max="0" value="0" />
+            <span id="t2SliceLabel">Slice 0</span>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Target FF</h2>
+              <p id="ffMeta" class="meta">--</p>
+            </div>
+            <div class="toggle-group">
+              <label class="toggle">
+                <input type="checkbox" id="ffOverlay" checked />
+                <span>Overlay mask</span>
+              </label>
+              <label class="toggle">
+                <input type="checkbox" id="ffEroded" />
+                <span>Eroded mask</span>
+              </label>
+            </div>
+          </div>
+          <canvas id="ffCanvas"></canvas>
+          <div class="slider">
+            <input type="range" id="ffSlice" min="0" max="0" value="0" />
+            <span id="ffSliceLabel">Slice 0</span>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

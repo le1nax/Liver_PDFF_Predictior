@@ -1,0 +1,42 @@
+# Configuration file for fat fraction inference
+
+# Model checkpoint
+checkpoint_path: "./outputs/experiment_001/checkpoint_best.pth"
+
+# Inference mode: "single", "batch", "validation", or "yaml"
+mode: "yaml"
+
+# Single file inference
+single:
+  t2_path: "/path/to/t2_image.nii.gz"
+  output_path: "./predictions/prediction.nii.gz"
+  gt_path: null  # Optional: path to ground truth for metrics
+  visualize: true
+
+# Batch inference
+batch:
+  input_dir: "/path/to/t2_images/"
+  output_dir: "./predictions/"
+  t2_suffix: "_t2_aligned"  # Pattern to match T2 files
+
+# Validation inference (with ground truth)
+validation:
+  data_dir: "/path/to/validation_data/"
+  output_dir: "./validation_predictions/"
+  use_patient_subdirs: true
+  t2_suffix: "_t2_aligned"
+  ff_suffix: "_ff_normalized"
+  mask_suffix: "_segmentation"
+
+# YAML-based inference (reads test cases from YAML file)
+yaml:
+  inference_yaml: "./preprocessed_images/test_inference.yaml"  # YAML file with test cases
+  output_dir: "./predictions/001/"  # Directory to save predictions
+
+# Device
+device: "cuda"  # "cuda" or "cpu"
+
+# Preprocessing (should match training config)
+preprocessing:
+  normalize_t2: true
+  percentile_clip: [0.5, 99.5]

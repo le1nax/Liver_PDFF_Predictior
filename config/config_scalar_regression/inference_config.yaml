@@ -1,0 +1,16 @@
+# Configuration file for scalar fat fraction regression inference
+
+checkpoint_path: "outputs/scalar_regression_run/checkpoint_best.pth"
+data_dir: "datasets/patient_data_regression_setup"
+output_path: "outputs/scalar_regression_run/predictions.yaml"
+
+batch_size: 2
+num_workers: 2
+device: "cuda"
+
+data:
+  use_patient_subdirs: true
+  use_subdirs: false
+  t2_suffix: "_t2_original"
+  t2_subdir: "t2_images"
+  log_t2: false

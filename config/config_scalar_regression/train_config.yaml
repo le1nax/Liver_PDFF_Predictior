@@ -1,0 +1,63 @@
+# Configuration file for scalar fat fraction regression training
+
+data:
+  data_dir: "datasets/patient_data_regression_setup"
+  use_patient_subdirs: true
+  use_subdirs: false
+  t2_suffix: "_t2_original"
+  ff_suffix: "_ff_normalized"
+  mask_suffix: "_segmentation"
+  input_mask_suffix: "_t2_original_segmentation"
+  log_t2: false
+  augment: true
+  flip_prob: 0.5
+  rotate_prob: 0.2
+  rotate_angle_min: 1.0
+  rotate_angle_max: 15.0
+  t2_subdir: "t2_images"
+  ff_subdir: "fat_fraction_maps"
+  mask_subdir: "liver_masks"
+  mask_erosion: 3
+  fat_sampling:
+    enabled: false
+    bin_edges: [0.0, 0.1, 0.2, 1.0]
+    bin_probs: [0.2, 0.3, 0.5]
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+  random_seed: 42
+
+training:
+  num_epochs: 120
+  batch_size: 1
+  grad_accum_steps: 1
+  grad_accum_enabled: false
+  num_workers: 2
+  val_split: 0.2
+  seed: 42
+  gradient_clip: 0.0
+
+model:
+  base_channels: 16
+
+optimizer:
+  type: "adamw"
+  lr: 0.0001
+  weight_decay: 0.00001
+
+loss:
+  type: "smooth_l1"
+  beta: 0.02
+  fat_weighting:
+    enabled: false
+    alpha: 4.0
+    gamma: 2.0
+    max_weight: 6.0
+
+output_dir: "outputs/scalar_regression_run"
+
+device: "cuda"
+
+ddp:
+  enabled: false
+  backend: "nccl"
