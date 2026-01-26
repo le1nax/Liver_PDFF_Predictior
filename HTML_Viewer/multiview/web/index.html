@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Liver FF Viewer</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="header">
+        <div>
+          <div class="eyebrow">Liver MRI Viewer</div>
+          <h1>T2 + Fat Fraction Overlay</h1>
+        </div>
+        <div class="controls">
+          <label class="control">
+            <span>Start patient</span>
+            <select id="patientSelect"></select>
+          </label>
+          <div class="pager">
+            <button class="control-button" id="prevButton" type="button">Prev 25</button>
+            <button class="control-button" id="nextButton" type="button">Next 25</button>
+          </div>
+          <label class="control">
+            <span>Z slice</span>
+            <input id="zSlider" type="range" min="0" max="0" value="0" />
+            <div class="value" id="zValue">0</div>
+          </label>
+          <label class="control">
+            <span>FF opacity</span>
+            <input id="opacitySlider" type="range" min="0" max="1" value="0.55" step="0.01" />
+            <div class="value" id="opacityValue">0.55</div>
+          </label>
+          <label class="control checkbox">
+            <input id="outlineToggle" type="checkbox" checked />
+            <span>Segmentation outline</span>
+          </label>
+          <label class="control checkbox">
+            <input id="maskToggle" type="checkbox" />
+            <span>Segmentation mask</span>
+          </label>
+          <label class="control checkbox">
+            <input id="erodedMaskToggle" type="checkbox" />
+            <span>Eroded mask</span>
+          </label>
+          <label class="control">
+            <span>Erosion size</span>
+            <input id="erosionSlider" type="range" min="0" max="6" value="3" step="1" />
+            <div class="value" id="erosionValue">3</div>
+          </label>
+        </div>
+      </header>
+
+      <section class="grid" id="sliceGrid"></section>
+      <section class="legend" id="legend"></section>
+      <footer class="footer" id="status"></footer>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>

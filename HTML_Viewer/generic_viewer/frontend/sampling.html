@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fat-Aware Sampler</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="header">
+        <div>
+          <p class="eyebrow">Liver FF Regression</p>
+          <h1>Fat-Aware Sampling Viewer</h1>
+          <p class="subtitle">
+            Test the exact sampling logic used in training by drawing weighted samples from
+            FF medians inside an eroded mask.
+          </p>
+        </div>
+        <div class="controls">
+          <label class="control">
+            <span>Split</span>
+            <select id="splitSelect">
+              <option value="train">train</option>
+              <option value="val">val</option>
+              <option value="test">test</option>
+              <option value="all">all</option>
+            </select>
+          </label>
+          <button id="summaryBtn" class="ghost">Load Summary</button>
+          <button id="sampleBtn" class="ghost">Sample Next</button>
+        </div>
+      </header>
+
+      <main class="grid">
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Sampler Settings</h2>
+              <p class="meta">Bin edges and probabilities (values in [0, 1])</p>
+            </div>
+          </div>
+          <div class="form-grid">
+            <label class="control">
+              <span>Bin edges</span>
+              <input id="binEdges" type="text" value="0.0, 0.1, 0.2, 1.0" />
+            </label>
+            <label class="control">
+              <span>Bin probs</span>
+              <input id="binProbs" type="text" value="0.2, 0.3, 0.5" />
+            </label>
+            <label class="control">
+              <span>Mask erosion</span>
+              <input id="erosionIters" type="number" min="0" value="3" />
+            </label>
+          </div>
+          <div id="summaryTable" class="table"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Sampled Patient</h2>
+              <p id="sampleMeta" class="meta">No sample yet.</p>
+            </div>
+            <label class="control">
+              <span>Patient</span>
+              <select id="patientSelect"></select>
+            </label>
+          </div>
+          <div class="mini-grid">
+            <div>
+              <h3>Original T2</h3>
+              <canvas id="t2Canvas"></canvas>
+              <div class="slider">
+                <input type="range" id="t2Slice" min="0" max="0" value="0" />
+                <span id="t2SliceLabel">Slice 0</span>
+              </div>
+            </div>
+            <div>
+              <h3>Target FF</h3>
+              <canvas id="ffCanvas"></canvas>
+              <div class="legend">
+                <canvas id="ffLegend" height="16"></canvas>
+                <div class="legend-labels">
+                  <span>0%</span>
+                  <span>100%</span>
+                </div>
+              </div>
+              <div class="slider">
+                <input type="range" id="ffSlice" min="0" max="0" value="0" />
+                <span id="ffSliceLabel">Slice 0</span>
+              </div>
+            </div>
+          </div>
+          <div class="toggle-group">
+            <label class="toggle">
+              <input type="checkbox" id="t2Overlay" checked />
+              <span>Overlay mask</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" id="ffOverlay" checked />
+              <span>Overlay mask</span>
+            </label>
+            <label class="toggle">
+              <input type="checkbox" id="ffEroded" checked />
+              <span>Eroded mask</span>
+            </label>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="sampling.js"></script>
+  </body>
+</html>

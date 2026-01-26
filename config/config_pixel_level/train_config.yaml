@@ -2,7 +2,7 @@
 
 # Data settings
 data:
-  data_dir: "/home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/preprocessed_images_fixed3"  # CHANGE THIS to your data directory
+  data_dir: "/home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/datasets/preprocessed_images_fixed3"
 
   # Directory structure mode - choose ONE option:
 
@@ -29,19 +29,21 @@ data:
   test_ratio: 0.15
   random_seed: 42
 
-  # Patch-based training (set to false to use full volumes)
-  use_patches: false
-  patch_size: [64, 128, 128]  # [depth, height, width]
-
   # Optional log transform for T2 intensity (applied before normalization)
   log_t2: false
 
-  # Fat-aware patch sampling (only used when use_patches: true)
-  fat_patch_sampling:
-    enabled: false
+  # Fat-aware volume sampling
+  fat_sampling:
+    enabled: true
     bin_edges: [0.0, 0.1, 0.2, 1.0]
-    bin_probs: [0.2, 0.3, 0.5]
-    max_attempts: 20
+    bin_probs: [0.3, 0.5, 0.2]
+
+  # Fat-stratified split generation (median FF inside eroded mask)
+  fat_split:
+    enabled: true
+    bin_edges: [0.0, 0.05, 0.15, 0.25, 1.0]
+    split_file: "data_splits_fatassigned.json"
+    seed: 42
 
   # Mask erosion (shrinks the liver mask to avoid edge effects)
   mask_erosion: 3  # Number of erosion iterations (0 = no erosion, 3 ≈ 3 pixels)
@@ -116,7 +118,7 @@ scheduler:
 # Training settings
 training:
   num_epochs: 150  # Medical imaging often benefits from longer training
-  batch_size: 3  # Reduce to 1 if out of memory
+  batch_size: 1  # Reduce to 1 if out of memory
   num_workers: 4
   gradient_clip: 1.0  # Set to 0 to disable
 
@@ -124,5 +126,5 @@ training:
   early_stopping_patience: 25  # Increased to match longer training
   early_stopping_delta: 0.0001
 
-# Output directory for checkpoints and logs
-output_dir: "./outputs/experiment_007"
+# Output directory for checkpoints and logs (overridden with timestamp in train.py)
+output_dir: "./outputs/pixel_level_network"

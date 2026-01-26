@@ -131,11 +131,13 @@ model:
   base_channels: 16
 ```
 
-**Option 3:** Enable patch-based training
+**Option 3:** Enable fat-aware volume sampling
 ```yaml
 data:
-  use_patches: true
-  patch_size: [32, 64, 64]
+  fat_sampling:
+    enabled: true
+    bin_edges: [0.0, 0.1, 0.2, 1.0]
+    bin_probs: [0.2, 0.3, 0.5]
 ```
 
 ### Preprocessing Failed?

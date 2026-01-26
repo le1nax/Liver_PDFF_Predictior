@@ -3,19 +3,33 @@ Training script for fat fraction prediction model.
 """
 
 import os
+import sys
 import argparse
 import yaml
+import json
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import WeightedRandomSampler
 from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
 from tqdm import tqdm
 import numpy as np
+import time
+from typing import List
 from datetime import datetime
 
+# Add parent directory to path for imports when running script directly
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from pixel_level_network.model import get_model
-from dataset import get_dataloaders, create_data_splits, load_data_splits
+from dataset import (
+    get_dataloaders,
+    create_data_splits,
+    create_fat_stratified_splits,
+    load_data_splits,
+    LiverFatDataset,
+)
 from losses import get_loss_function, CombinedLoss
 from utils import calculate_metrics, save_checkpoint, load_checkpoint, EarlyStopping
 
@@ -320,6 +334,51 @@ class Trainer:
         self.writer.close()
 
 
+def compute_stratified_weights(targets: List[float], bin_edges: List[float], bin_probs: List[float]) -> List[float]:
+    if len(bin_edges) != len(bin_probs) + 1:
+        raise ValueError("bin_edges must be one longer than bin_probs")
+    n_bins = len(bin_probs)
+    counts = [0] * n_bins
+    bins = []
+    for t in targets:
+        idx = 0
+        for i in range(n_bins):
+            if bin_edges[i] <= t < bin_edges[i + 1]:
+                idx = i
+                break
+        bins.append(idx)
+        counts[idx] += 1
+
+    prob_sum = float(np.sum(bin_probs))
+    if prob_sum <= 0:
+        raise ValueError("bin_probs must sum to > 0")
+    bin_probs = [p / prob_sum for p in bin_probs]
+
+    bin_weights = []
+    for i in range(n_bins):
+        if counts[i] == 0:
+            bin_weights.append(0.0)
+        else:
+            bin_weights.append(bin_probs[i] / counts[i])
+
+    weights = [bin_weights[idx] for idx in bins]
+    mean_weight = float(np.mean([w for w in weights if w > 0])) if weights else 1.0
+    if mean_weight > 0:
+        weights = [w / mean_weight for w in weights]
+    return weights
+
+
+def compute_volume_fat_fraction(sample: dict) -> float:
+    ff = sample["fat_fraction"].numpy()
+    mask = sample["mask"].numpy() if "mask" in sample else None
+    if mask is None or mask.sum() == 0:
+        return float(np.median(ff))
+    masked_values = ff[mask > 0]
+    if masked_values.size == 0:
+        return float(np.median(ff))
+    return float(np.median(masked_values))
+
+
 def main():
     parser = argparse.ArgumentParser(description='Train fat fraction prediction model')
     parser.add_argument('--config', type=str, default='config/config_pixel_level/train_config.yaml',
@@ -338,11 +397,18 @@ def main():
 
     # Create or load data splits
     data_dir = config['data']['data_dir']
-    splits_file = Path(data_dir) / 'data_splits.json'
+    fat_split_cfg = config['data'].get('fat_split', {})
+    use_fat_split = bool(fat_split_cfg.get('enabled', False))
+    split_filename = fat_split_cfg.get('split_file', 'data_splits_fatassigned.json')
+    splits_file = Path(data_dir) / (split_filename if use_fat_split else 'data_splits.json')
 
     if splits_file.exists():
         print("Loading existing data splits...")
         train_ids, val_ids, test_ids = load_data_splits(data_dir)
+        if use_fat_split and splits_file.name != 'data_splits.json':
+            with open(splits_file, 'r') as f:
+                splits = json.load(f)
+            train_ids, val_ids, test_ids = splits['train'], splits['val'], splits['test']
 
         # Validate loaded splits (filter out patients with missing files)
         print("Validating loaded splits...")
@@ -372,16 +438,34 @@ def main():
         print(f"After validation: Train={len(train_ids)}, Val={len(val_ids)}, Test={len(test_ids)}")
     else:
         print("Creating new data splits...")
-        train_ids, val_ids, test_ids = create_data_splits(
-            data_dir,
-            train_ratio=config['data'].get('train_ratio', 0.7),
-            val_ratio=config['data'].get('val_ratio', 0.15),
-            test_ratio=config['data'].get('test_ratio', 0.15),
-            random_seed=config['data'].get('random_seed', 42),
-            use_subdirs=config['data'].get('use_subdirs', False),
-            use_patient_subdirs=config['data'].get('use_patient_subdirs', False),
-            t2_suffix=config['data'].get('t2_suffix', '_t2_aligned')
-        )
+        if use_fat_split:
+            train_ids, val_ids, test_ids = create_fat_stratified_splits(
+                data_dir,
+                bin_edges=fat_split_cfg.get('bin_edges', [0.0, 0.05, 0.15, 0.25, 1.0]),
+                train_ratio=config['data'].get('train_ratio', 0.7),
+                val_ratio=config['data'].get('val_ratio', 0.15),
+                test_ratio=config['data'].get('test_ratio', 0.15),
+                random_seed=fat_split_cfg.get('seed', config['data'].get('random_seed', 42)),
+                save_splits=True,
+                split_filename=split_filename,
+                use_subdirs=config['data'].get('use_subdirs', False),
+                use_patient_subdirs=config['data'].get('use_patient_subdirs', False),
+                t2_suffix=config['data'].get('t2_suffix', '_t2_aligned'),
+                ff_suffix=config['data'].get('ff_suffix', '_ff_normalized'),
+                mask_suffix=config['data'].get('mask_suffix', '_segmentation'),
+                mask_erosion=config['data'].get('mask_erosion', 3),
+            )
+        else:
+            train_ids, val_ids, test_ids = create_data_splits(
+                data_dir,
+                train_ratio=config['data'].get('train_ratio', 0.7),
+                val_ratio=config['data'].get('val_ratio', 0.15),
+                test_ratio=config['data'].get('test_ratio', 0.15),
+                random_seed=config['data'].get('random_seed', 42),
+                use_subdirs=config['data'].get('use_subdirs', False),
+                use_patient_subdirs=config['data'].get('use_patient_subdirs', False),
+                t2_suffix=config['data'].get('t2_suffix', '_t2_aligned')
+            )
 
     # Create inference YAML file for test set
     from dataset import create_inference_yaml
@@ -396,14 +480,70 @@ def main():
         mask_suffix=config['data'].get('mask_suffix', '_segmentation')
     )
 
+    # Create timestamped output directory under outputs/pixel_level_network
+    timestamp = datetime.now().strftime("experiment_%Y%m%d_%H%M%S")
+    config['output_dir'] = str(Path("outputs") / "pixel_level_network" / timestamp)
+
     # Create dataloaders
     print("Creating dataloaders...")
+    train_sampler = None
+    fat_sampling_cfg = config['data'].get('fat_sampling', {})
+    if fat_sampling_cfg.get('enabled', False):
+        print("Fat-aware sampling enabled. Computing per-volume medians...")
+        t0 = time.time()
+        fat_split_cfg = config['data'].get('fat_split', {})
+        split_file = fat_split_cfg.get('split_file', 'data_splits_fatassigned.json')
+        median_map = {}
+        split_path = Path(data_dir) / split_file
+        if split_path.exists():
+            try:
+                with open(split_path, 'r') as f:
+                    split_data = json.load(f)
+                median_map = split_data.get('median_ff', {}) or {}
+                print(f"Loaded {len(median_map)} precomputed medians from {split_path}")
+            except Exception as exc:
+                print(f"Failed to read {split_path}: {exc}")
+        weight_dataset = LiverFatDataset(
+            data_dir,
+            patient_ids=train_ids,
+            use_patient_subdirs=config['data'].get('use_patient_subdirs', False),
+            use_subdirs=config['data'].get('use_subdirs', False),
+            t2_suffix=config['data'].get('t2_suffix', '_t2_aligned'),
+            ff_suffix=config['data'].get('ff_suffix', '_ff_normalized'),
+            mask_suffix=config['data'].get('mask_suffix', '_segmentation'),
+            t2_subdir=config['data'].get('t2_subdir', 't2_images'),
+            ff_subdir=config['data'].get('ff_subdir', 'fat_fraction_maps'),
+            mask_subdir=config['data'].get('mask_subdir', 'liver_masks'),
+            log_t2=config['data'].get('log_t2', False),
+            mask_erosion=config['data'].get('mask_erosion', 0),
+            augment=False,
+            validate_files=False,
+        )
+        targets = []
+        computed = 0
+        for i in tqdm(range(len(weight_dataset)), desc="Computing medians"):
+            pid = weight_dataset.patient_ids[i]
+            if pid in median_map:
+                targets.append(float(median_map[pid]))
+            else:
+                targets.append(compute_volume_fat_fraction(weight_dataset[i]))
+                computed += 1
+        bin_edges = fat_sampling_cfg.get('bin_edges', [0.0, 0.1, 0.2, 1.0])
+        bin_probs = fat_sampling_cfg.get('bin_probs', [0.2, 0.3, 0.5])
+        print(f"Fat sampling bins: {bin_edges} probs: {bin_probs}")
+        weights = compute_stratified_weights(targets, bin_edges, bin_probs)
+        print(
+            f"Computed {len(weights)} weights in {time.time() - t0:.1f}s "
+            f"(computed {computed} medians, reused {len(median_map)})"
+        )
+        train_sampler = WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
+    else:
+        print("Fat-aware sampling disabled.")
+
     train_loader, val_loader, test_loader = get_dataloaders(
         data_dir=data_dir,
         batch_size=config['training']['batch_size'],
         num_workers=config['training'].get('num_workers', 4),
-        use_patches=config['data'].get('use_patches', False),
-        patch_size=tuple(config['data'].get('patch_size', [64, 128, 128])),
         train_ids=train_ids,
         val_ids=val_ids,
         test_ids=test_ids,
@@ -422,10 +562,7 @@ def main():
         rotate_prob=config['data'].get('rotate_prob', 0.2),
         rotate_angle_min=config['data'].get('rotate_angle_min', 1.0),
         rotate_angle_max=config['data'].get('rotate_angle_max', 15.0),
-        fat_stratified=config['data'].get('fat_patch_sampling', {}).get('enabled', False),
-        fat_bin_edges=config['data'].get('fat_patch_sampling', {}).get('bin_edges'),
-        fat_bin_probs=config['data'].get('fat_patch_sampling', {}).get('bin_probs'),
-        fat_max_attempts=config['data'].get('fat_patch_sampling', {}).get('max_attempts', 20),
+        train_sampler=train_sampler,
     )
 
     # Initialize trainer

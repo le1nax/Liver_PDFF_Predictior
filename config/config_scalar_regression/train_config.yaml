@@ -19,9 +19,15 @@ data:
   mask_subdir: "liver_masks"
   mask_erosion: 3
   fat_sampling:
-    enabled: false
+    enabled: true
     bin_edges: [0.0, 0.1, 0.2, 1.0]
-    bin_probs: [0.2, 0.3, 0.5]
+    bin_probs: [0.3, 0.5, 0.2]
+
+  fat_split:
+    enabled: true
+    bin_edges: [0.0, 0.05, 0.15, 0.25, 1.0]
+    split_file: "data_splits_fatassigned.json"
+    seed: 42
   train_ratio: 0.7
   val_ratio: 0.15
   test_ratio: 0.15

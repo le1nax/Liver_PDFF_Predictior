@@ -381,133 +381,6 @@ class LiverFatDataset(Dataset):
         return sample
 
 
-class PatchDataset(Dataset):
-    """
-    Dataset that extracts 3D patches from full volumes.
-    Useful for training on large volumes that don't fit in memory.
-    """
-
-    def __init__(
-        self,
-        base_dataset: LiverFatDataset,
-        patch_size: Tuple[int, int, int] = (64, 128, 128),
-        samples_per_volume: int = 4,
-        random_sampling: bool = True,
-        fat_stratified: bool = False,
-        fat_bin_edges: Optional[List[float]] = None,
-        fat_bin_probs: Optional[List[float]] = None,
-        max_attempts: int = 20
-    ):
-        """
-        Args:
-            base_dataset: LiverFatDataset instance
-            patch_size: Size of patches to extract (D, H, W)
-            samples_per_volume: Number of patches to extract per volume
-            random_sampling: Random sampling (True) or grid sampling (False)
-        """
-        self.base_dataset = base_dataset
-        self.patch_size = patch_size
-        self.samples_per_volume = samples_per_volume
-        self.random_sampling = random_sampling
-        self.fat_stratified = fat_stratified
-        self.fat_bin_edges = fat_bin_edges or [0.0, 0.1, 0.2, 1.0]
-        self.fat_bin_probs = fat_bin_probs or [0.2, 0.3, 0.5]
-        self.max_attempts = max_attempts
-
-        if len(self.fat_bin_edges) != len(self.fat_bin_probs) + 1:
-            raise ValueError("fat_bin_edges must be one longer than fat_bin_probs")
-        prob_sum = float(np.sum(self.fat_bin_probs))
-        if prob_sum <= 0:
-            raise ValueError("fat_bin_probs must sum to > 0")
-        self.fat_bin_probs = [p / prob_sum for p in self.fat_bin_probs]
-
-    def __len__(self) -> int:
-        return len(self.base_dataset) * self.samples_per_volume
-
-    def _sample_start(self, d: int, h: int, w: int) -> Tuple[int, int, int]:
-        pd, ph, pw = self.patch_size
-        start_d = np.random.randint(0, max(1, d - pd + 1))
-        start_h = np.random.randint(0, max(1, h - ph + 1))
-        start_w = np.random.randint(0, max(1, w - pw + 1))
-        return start_d, start_h, start_w
-
-    def _extract_patch(self, data: torch.Tensor, start_d: int, start_h: int, start_w: int) -> torch.Tensor:
-        """Extract patch from volume at the given start indices."""
-        _, d, h, w = data.shape
-        pd, ph, pw = self.patch_size
-
-        patch = data[
-            :,
-            start_d:start_d + pd,
-            start_h:start_h + ph,
-            start_w:start_w + pw
-        ]
-
-        if patch.shape[1:] != self.patch_size:
-            pad_d = max(0, pd - patch.shape[1])
-            pad_h = max(0, ph - patch.shape[2])
-            pad_w = max(0, pw - patch.shape[3])
-            patch = torch.nn.functional.pad(
-                patch,
-                (0, pad_w, 0, pad_h, 0, pad_d),
-                mode='constant',
-                value=0
-            )
-
-        return patch
-
-    def _masked_patch_mean(self, ff_patch: torch.Tensor, mask_patch: torch.Tensor) -> float:
-        mask_sum = mask_patch.sum()
-        if mask_sum <= 0:
-            return 0.0
-        return float((ff_patch * mask_patch).sum() / mask_sum)
-
-    def _pick_target_bin(self) -> int:
-        return int(np.random.choice(len(self.fat_bin_probs), p=self.fat_bin_probs))
-
-    def _bin_index(self, value: float) -> int:
-        for i in range(len(self.fat_bin_edges) - 1):
-            if self.fat_bin_edges[i] <= value < self.fat_bin_edges[i + 1]:
-                return i
-        return len(self.fat_bin_edges) - 2
-
-    def __getitem__(self, idx: int) -> dict:
-        volume_idx = idx // self.samples_per_volume
-        sample = self.base_dataset[volume_idx]
-        t2 = sample['t2']
-        ff = sample['fat_fraction']
-        mask = sample['mask']
-        _, d, h, w = t2.shape
-
-        if self.fat_stratified:
-            target_bin = self._pick_target_bin()
-            chosen = None
-            for _ in range(self.max_attempts):
-                start_d, start_h, start_w = self._sample_start(d, h, w)
-                ff_patch = self._extract_patch(ff, start_d, start_h, start_w)
-                mask_patch = self._extract_patch(mask, start_d, start_h, start_w)
-                mean_ff = self._masked_patch_mean(ff_patch, mask_patch)
-                if self._bin_index(mean_ff) == target_bin:
-                    chosen = (start_d, start_h, start_w)
-                    break
-                chosen = (start_d, start_h, start_w)
-            start_d, start_h, start_w = chosen
-        else:
-            start_d, start_h, start_w = self._sample_start(d, h, w)
-
-        # Extract patches
-        t2_patch = self._extract_patch(t2, start_d, start_h, start_w)
-        ff_patch = self._extract_patch(ff, start_d, start_h, start_w)
-        mask_patch = self._extract_patch(mask, start_d, start_h, start_w)
-
-        return {
-            't2': t2_patch,
-            'fat_fraction': ff_patch,
-            'mask': mask_patch,
-            'patient_id': sample['patient_id']
-        }
-
-
 def create_data_splits(
     data_dir: str,
     train_ratio: float = 0.7,
@@ -600,6 +473,149 @@ def load_data_splits(data_dir: str) -> Tuple[List[str], List[str], List[str]]:
     with open(split_file, 'r') as f:
         splits = json.load(f)
     return splits['train'], splits['val'], splits['test']
+
+
+def _discover_patient_ids_for_splits(
+    data_dir: str,
+    use_subdirs: bool = False,
+    use_patient_subdirs: bool = False,
+    t2_suffix: str = '_t2_aligned'
+) -> List[str]:
+    data_path = Path(data_dir)
+    if use_patient_subdirs:
+        all_dirs = [d for d in data_path.iterdir() if d.is_dir()]
+        return sorted([d.name for d in all_dirs])
+    if use_subdirs:
+        t2_dir = data_path / 't2_images'
+        t2_files = sorted(list(t2_dir.glob('*.nii.gz')) + list(t2_dir.glob('*.nii')))
+        return [f.stem.replace('.nii', '') for f in t2_files]
+    t2_files = sorted(list(data_path.glob(f'*{t2_suffix}.nii.gz')) + list(data_path.glob(f'*{t2_suffix}.nii')))
+    patient_ids = []
+    for f in t2_files:
+        filename = f.stem.replace('.nii', '')
+        if filename.endswith(t2_suffix):
+            patient_ids.append(filename[:-len(t2_suffix)])
+    return patient_ids
+
+
+def _get_file_path_static(
+    directory: Path,
+    patient_id: str,
+    suffix: str,
+    use_patient_subdirs: bool
+) -> Path:
+    filename = f"{patient_id}{suffix}"
+    if use_patient_subdirs:
+        path_gz = directory / patient_id / f"{filename}.nii.gz"
+        path_nii = directory / patient_id / f"{filename}.nii"
+    else:
+        path_gz = directory / f"{filename}.nii.gz"
+        path_nii = directory / f"{filename}.nii"
+    if path_gz.exists():
+        return path_gz
+    if path_nii.exists():
+        return path_nii
+    return path_gz
+
+
+def _normalize_ff_static(ff_data: np.ndarray) -> np.ndarray:
+    if ff_data.max() > 1.5:
+        ff_data = ff_data / 100.0
+    return np.clip(ff_data, 0.0, 1.0)
+
+
+def create_fat_stratified_splits(
+    data_dir: str,
+    bin_edges: List[float],
+    train_ratio: float = 0.7,
+    val_ratio: float = 0.15,
+    test_ratio: float = 0.15,
+    random_seed: int = 42,
+    save_splits: bool = True,
+    split_filename: str = 'data_splits_fatassigned.json',
+    use_subdirs: bool = False,
+    use_patient_subdirs: bool = False,
+    t2_suffix: str = '_t2_aligned',
+    ff_suffix: str = '_ff_normalized',
+    mask_suffix: str = '_segmentation',
+    mask_erosion: int = 3
+) -> Tuple[List[str], List[str], List[str]]:
+    assert abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-6, "Ratios must sum to 1.0"
+    if len(bin_edges) < 2:
+        raise ValueError("bin_edges must contain at least two values")
+
+    data_path = Path(data_dir)
+    patient_ids = _discover_patient_ids_for_splits(
+        data_dir,
+        use_subdirs=use_subdirs,
+        use_patient_subdirs=use_patient_subdirs,
+        t2_suffix=t2_suffix
+    )
+
+    struct = generate_binary_structure(3, 1)
+    rng = np.random.RandomState(random_seed)
+    by_bin: Dict[int, List[str]] = {}
+    median_map: Dict[str, float] = {}
+
+    for pid in patient_ids:
+        ff_path = _get_file_path_static(data_path, pid, ff_suffix, use_patient_subdirs)
+        mask_path = _get_file_path_static(data_path, pid, mask_suffix, use_patient_subdirs)
+        if not ff_path.exists() or not mask_path.exists():
+            continue
+        ff_data = nib.load(str(ff_path)).get_fdata().astype(np.float32)
+        mask_data = nib.load(str(mask_path)).get_fdata().astype(np.float32)
+        ff_data = _normalize_ff_static(ff_data)
+        mask = (mask_data > 0).astype(np.float32)
+        if mask_erosion > 0:
+            mask = binary_erosion(mask, structure=struct, iterations=mask_erosion).astype(np.float32)
+        masked_values = ff_data[mask > 0]
+        if masked_values.size == 0:
+            continue
+        median_ff = float(np.median(masked_values))
+        median_map[pid] = median_ff
+        bin_idx = len(bin_edges) - 2
+        for i in range(len(bin_edges) - 1):
+            if bin_edges[i] <= median_ff < bin_edges[i + 1]:
+                bin_idx = i
+                break
+        by_bin.setdefault(bin_idx, []).append(pid)
+
+    train_ids: List[str] = []
+    val_ids: List[str] = []
+    test_ids: List[str] = []
+
+    for _, ids in sorted(by_bin.items()):
+        ids = list(ids)
+        rng.shuffle(ids)
+        n_total = len(ids)
+        n_train = int(n_total * train_ratio)
+        n_val = int(n_total * val_ratio)
+        train_ids.extend(ids[:n_train])
+        val_ids.extend(ids[n_train:n_train + n_val])
+        test_ids.extend(ids[n_train + n_val:])
+
+    rng.shuffle(train_ids)
+    rng.shuffle(val_ids)
+    rng.shuffle(test_ids)
+
+    if save_splits:
+        splits = {
+            'train': train_ids,
+            'val': val_ids,
+            'test': test_ids,
+            'random_seed': random_seed,
+            'train_ratio': train_ratio,
+            'val_ratio': val_ratio,
+            'test_ratio': test_ratio,
+            'bin_edges': bin_edges,
+            'median_ff': median_map
+        }
+        split_file = Path(data_dir) / split_filename
+        with open(split_file, 'w') as f:
+            json.dump(splits, f, indent=2)
+        print(f"Saved fat-stratified splits to {split_file}")
+
+    return train_ids, val_ids, test_ids
 
 
 def create_inference_yaml(
@@ -725,11 +741,10 @@ def get_dataloaders(
     data_dir: str,
     batch_size: int = 2,
     num_workers: int = 4,
-    use_patches: bool = False,
-    patch_size: Tuple[int, int, int] = (64, 128, 128),
     train_ids: Optional[List[str]] = None,
     val_ids: Optional[List[str]] = None,
     test_ids: Optional[List[str]] = None,
+    train_sampler: Optional[torch.utils.data.Sampler] = None,
     **dataset_kwargs
 ) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """
@@ -739,22 +754,16 @@ def get_dataloaders(
         data_dir: Root directory containing data
         batch_size: Batch size for training
         num_workers: Number of workers for data loading
-        use_patches: Whether to use patch-based sampling
-        patch_size: Size of patches if use_patches=True
         train_ids: List of training patient IDs
         val_ids: List of validation patient IDs
         test_ids: List of test patient IDs
+        train_sampler: Optional sampler for training dataset
         **dataset_kwargs: Additional arguments for LiverFatDataset
 
     Returns:
         Tuple of (train_loader, val_loader, test_loader)
     """
     # Create datasets (disable validation since IDs come from splits that were already validated)
-    fat_stratified = dataset_kwargs.pop("fat_stratified", False)
-    fat_bin_edges = dataset_kwargs.pop("fat_bin_edges", None)
-    fat_bin_probs = dataset_kwargs.pop("fat_bin_probs", None)
-    fat_max_attempts = dataset_kwargs.pop("fat_max_attempts", 20)
-
     train_kwargs = dict(dataset_kwargs)
     val_kwargs = dict(dataset_kwargs)
     test_kwargs = dict(dataset_kwargs)
@@ -765,28 +774,14 @@ def get_dataloaders(
     val_dataset = LiverFatDataset(data_dir, patient_ids=val_ids, validate_files=False, **val_kwargs)
     test_dataset = LiverFatDataset(data_dir, patient_ids=test_ids, validate_files=False, **test_kwargs)
 
-    # Wrap with patch dataset if needed
-    if use_patches:
-        train_dataset = PatchDataset(
-            train_dataset,
-            patch_size=patch_size,
-            samples_per_volume=4,
-            fat_stratified=fat_stratified,
-            fat_bin_edges=fat_bin_edges,
-            fat_bin_probs=fat_bin_probs,
-            max_attempts=fat_max_attempts,
-        )
-        val_dataset = PatchDataset(val_dataset, patch_size=patch_size, samples_per_volume=2)
-        test_dataset = PatchDataset(test_dataset, patch_size=patch_size, samples_per_volume=1)
-
-    # Use custom collate function only for full volumes (not patches)
-    collate_fn = None if use_patches else pad_collate_fn
+    collate_fn = pad_collate_fn
 
     # Create dataloaders
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=(train_sampler is None),
+        sampler=train_sampler,
         num_workers=num_workers,
         pin_memory=True,
         collate_fn=collate_fn

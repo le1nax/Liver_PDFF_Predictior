@@ -16,6 +16,8 @@ import torch.distributed as dist
 import os
 from torch.nn.parallel import DistributedDataParallel as DDP
 import yaml
+import json
+import time
 from torch.utils.data import DataLoader, DistributedSampler, WeightedRandomSampler
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -23,7 +25,7 @@ from tqdm import tqdm
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from dataset import create_data_splits, load_data_splits  # noqa: E402
+from dataset import create_data_splits, create_fat_stratified_splits, load_data_splits  # noqa: E402
 from scalar_regression.dataset_scalar import LiverFatScalarDataset, pad_collate_scalar  # noqa: E402
 from scalar_regression.model_scalar import get_scalar_model  # noqa: E402
 from utils import save_checkpoint, load_checkpoint, EarlyStopping  # noqa: E402
@@ -164,6 +166,8 @@ def main() -> None:
     else:
         device = torch.device("cpu")
     output_root = Path(config["output_dir"])
+    if not output_root.is_absolute():
+        output_root = (REPO_ROOT / output_root).resolve()
     timestamp = datetime.now().strftime("experiment_%Y%m%d_%H%M%S")
     output_dir = output_root / timestamp
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -173,21 +177,46 @@ def main() -> None:
     if not data_dir.is_absolute():
         data_dir = (REPO_ROOT / data_dir).resolve()
 
-    splits_file = data_dir / "data_splits.json"
+    fat_split_cfg = data_cfg.get("fat_split", {})
+    use_fat_split = bool(fat_split_cfg.get("enabled", False))
+    split_filename = fat_split_cfg.get("split_file", "data_splits_fatassigned.json")
+    splits_file = data_dir / (split_filename if use_fat_split else "data_splits.json")
     if splits_file.exists():
         train_ids, val_ids, test_ids = load_data_splits(str(data_dir))
+        if use_fat_split and splits_file.name != "data_splits.json":
+            with open(splits_file, "r") as f:
+                splits = json.load(f)
+            train_ids, val_ids, test_ids = splits["train"], splits["val"], splits["test"]
     else:
-        train_ids, val_ids, test_ids = create_data_splits(
-            str(data_dir),
-            train_ratio=data_cfg.get("train_ratio", 0.7),
-            val_ratio=data_cfg.get("val_ratio", 0.15),
-            test_ratio=data_cfg.get("test_ratio", 0.15),
-            random_seed=data_cfg.get("random_seed", seed),
-            save_splits=True,
-            use_subdirs=data_cfg.get("use_subdirs", False),
-            use_patient_subdirs=data_cfg.get("use_patient_subdirs", True),
-            t2_suffix=data_cfg.get("t2_suffix", "_t2_original"),
-        )
+        if use_fat_split:
+            train_ids, val_ids, test_ids = create_fat_stratified_splits(
+                str(data_dir),
+                bin_edges=fat_split_cfg.get("bin_edges", [0.0, 0.05, 0.15, 0.25, 1.0]),
+                train_ratio=data_cfg.get("train_ratio", 0.7),
+                val_ratio=data_cfg.get("val_ratio", 0.15),
+                test_ratio=data_cfg.get("test_ratio", 0.15),
+                random_seed=fat_split_cfg.get("seed", data_cfg.get("random_seed", seed)),
+                save_splits=True,
+                split_filename=split_filename,
+                use_subdirs=data_cfg.get("use_subdirs", False),
+                use_patient_subdirs=data_cfg.get("use_patient_subdirs", True),
+                t2_suffix=data_cfg.get("t2_suffix", "_t2_original"),
+                ff_suffix=data_cfg.get("ff_suffix", "_ff_normalized"),
+                mask_suffix=data_cfg.get("mask_suffix", "_segmentation"),
+                mask_erosion=data_cfg.get("mask_erosion", 3),
+            )
+        else:
+            train_ids, val_ids, test_ids = create_data_splits(
+                str(data_dir),
+                train_ratio=data_cfg.get("train_ratio", 0.7),
+                val_ratio=data_cfg.get("val_ratio", 0.15),
+                test_ratio=data_cfg.get("test_ratio", 0.15),
+                random_seed=data_cfg.get("random_seed", seed),
+                save_splits=True,
+                use_subdirs=data_cfg.get("use_subdirs", False),
+                use_patient_subdirs=data_cfg.get("use_patient_subdirs", True),
+                t2_suffix=data_cfg.get("t2_suffix", "_t2_original"),
+            )
 
     all_ids = train_ids + val_ids + test_ids
     temp_dataset = LiverFatScalarDataset(
@@ -263,6 +292,20 @@ def main() -> None:
     else:
         fat_sampling_cfg = data_cfg.get("fat_sampling", {})
         if fat_sampling_cfg.get("enabled", False):
+            print("Fat-aware sampling enabled. Computing per-volume medians...")
+            t0 = time.time()
+            fat_split_cfg = data_cfg.get("fat_split", {})
+            split_file = fat_split_cfg.get("split_file", "data_splits_fatassigned.json")
+            median_map = {}
+            split_path = data_dir / split_file
+            if split_path.exists():
+                try:
+                    with open(split_path, "r") as f:
+                        split_data = json.load(f)
+                    median_map = split_data.get("median_ff", {}) or {}
+                    print(f"Loaded {len(median_map)} precomputed medians from {split_path}")
+                except Exception as exc:
+                    print(f"Failed to read {split_path}: {exc}")
             weight_ds = LiverFatScalarDataset(
                 data_dir=str(data_dir),
                 patient_ids=train_ids,
@@ -280,10 +323,23 @@ def main() -> None:
                 augment=False,
                 validate_files=False,
             )
-            targets = [float(weight_ds[i]["target"].item()) for i in range(len(weight_ds))]
+            targets = []
+            computed = 0
+            for i in tqdm(range(len(weight_ds)), desc="Computing medians"):
+                pid = weight_ds.patient_ids[i]
+                if pid in median_map:
+                    targets.append(float(median_map[pid]))
+                else:
+                    targets.append(float(weight_ds[i]["target"].item()))
+                    computed += 1
             bin_edges = fat_sampling_cfg.get("bin_edges", [0.0, 0.1, 0.2, 1.0])
             bin_probs = fat_sampling_cfg.get("bin_probs", [0.2, 0.3, 0.5])
+            print(f"Fat sampling bins: {bin_edges} probs: {bin_probs}")
             sample_weights = compute_stratified_weights(targets, bin_edges, bin_probs)
+            print(
+                f"Computed {len(sample_weights)} weights in {time.time() - t0:.1f}s "
+                f"(computed {computed} medians, reused {len(median_map)})"
+            )
             train_sampler = WeightedRandomSampler(sample_weights, num_samples=len(sample_weights), replacement=True)
 
     train_loader = DataLoader(
@@ -354,7 +410,7 @@ def main() -> None:
         train_losses = []
         train_metrics = {"mae": [], "rmse": [], "correlation": []}
 
-        if train_sampler is not None:
+        if hasattr(train_sampler, "set_epoch"):
             train_sampler.set_epoch(epoch)
 
         optimizer.zero_grad()
@@ -363,6 +419,9 @@ def main() -> None:
         for batch_idx, batch in enumerate(pbar):
             t2 = batch["t2"].to(device)
             target = batch["target"].to(device)
+            # if rank == 0 and batch_idx % 5 == 0:
+            #     median_val = target.median()
+            #     print(f"Epoch {epoch} Batch {batch_idx}: Median GT fat fraction = {median_val.item():.4f}")
 
             output = model(t2)
             if weight_enabled:

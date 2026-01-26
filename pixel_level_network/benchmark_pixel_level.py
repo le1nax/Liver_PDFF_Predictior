@@ -3,18 +3,27 @@ Benchmark script for pixel-level fat fraction prediction.
 Compares experiments 5, 6, and 7 on the test set using median liver FF.
 """
 
+import argparse
 import json
+import sys
+import subprocess
+from pathlib import Path
+from typing import Any, Tuple
+
 import torch
 import numpy as np
 import nibabel as nib
-from pathlib import Path
 from tqdm import tqdm
 from scipy.ndimage import binary_erosion, generate_binary_structure
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from pixel_level_network.model import get_model
 
 
-def load_model(checkpoint_path: str, device: torch.device) -> torch.nn.Module:
+def load_model(checkpoint_path: str, device: torch.device) -> Tuple[torch.nn.Module, dict]:
     """Load model from checkpoint."""
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
 
@@ -34,7 +43,7 @@ def load_model(checkpoint_path: str, device: torch.device) -> torch.nn.Module:
     model = model.to(device)
     model.eval()
 
-    return model
+    return model, checkpoint.get('config', {})
 
 
 def normalize_t2(t2_data: np.ndarray) -> np.ndarray:
@@ -79,18 +88,23 @@ def compute_median_ff(ff_data: np.ndarray, mask: np.ndarray) -> float:
         return np.nan
     return np.median(masked_values)
 
+def _jsonify(obj: Any) -> Any:
+    if isinstance(obj, Path):
+        return str(obj)
+    if isinstance(obj, dict):
+        return {str(k): _jsonify(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_jsonify(v) for v in obj]
+    if isinstance(obj, np.generic):
+        return obj.item()
+    return obj
 
-def main():
+
+def main(data_dir: Path, splits_file: Path, output_dir: Path, experiments: dict[str, Path]) -> None:
     # Configuration
-    data_dir = Path("/home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/datasets/preprocessed_images_fixed3")
-    splits_file = data_dir / "data_splits.json"
-    output_dir = Path("/home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/outputs")
-
-    experiments = {
-        "experiment_005": output_dir / "experiment_005" / "checkpoint_best.pth",
-        "experiment_006": output_dir / "experiment_006" / "checkpoint_best.pth",
-        "experiment_007": output_dir / "experiment_007" / "checkpoint_best.pth",
-    }
+    data_dir = Path(data_dir)
+    splits_file = Path(splits_file)
+    output_dir = Path(output_dir)
 
     erosion_iterations = 3
 
@@ -114,8 +128,9 @@ def main():
         print(f"{'='*60}")
 
         # Load model
-        model = load_model(str(checkpoint_path), device)
+        model, exp_config = load_model(str(checkpoint_path), device)
         print(f"Loaded checkpoint: {checkpoint_path}")
+        results[exp_name]['config'] = _jsonify(exp_config)
 
         # Process each test patient
         for patient_id in tqdm(test_ids, desc=f"Processing {exp_name}"):
@@ -197,7 +212,8 @@ def main():
         print(f"  Pred median range: [{pred_medians.min()*100:.1f}%, {pred_medians.max()*100:.1f}%]")
 
     # Save detailed results
-    results_file = output_dir / "benchmark_results.json"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    results_file = output_dir / "benchmark_results_newdist.json"
     save_results = {}
     for exp_name in experiments:
         save_results[exp_name] = {
@@ -210,6 +226,68 @@ def main():
         json.dump(save_results, f, indent=2)
     print(f"\nDetailed results saved to: {results_file}")
 
+    eval_script = ROOT_DIR / "evaluate_benchmark.py"
+    if eval_script.exists():
+        print(f"Running evaluation: {eval_script} --results {results_file}")
+        subprocess.run(
+            [sys.executable, str(eval_script), "--results", str(results_file)],
+            check=False,
+        )
+    else:
+        print(f"Warning: evaluate_benchmark.py not found at {eval_script}")
+
 
 if __name__ == "__main__":
-    main()
+    default_data_dir = Path("/home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/datasets/preprocessed_images_fixed3")
+    default_output_dir_base = Path("/home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/outputs/pixel_level_network")
+    default_experiments = {
+        "experiment_006": default_output_dir_base / "experiment_006" / "checkpoint_best.pth"
+    }
+    default_suffix = "_".join(default_experiments.keys())
+    default_output_dir = default_output_dir_base / "benchmark_evaluation" / "" / default_suffix
+    splits_file = default_data_dir / "data_splits.json" #_fatassigned.json"
+
+    parser = argparse.ArgumentParser(description="Benchmark pixel-level fat fraction prediction.")
+    parser.add_argument(
+        "--data-dir",
+        type=Path,
+        default=default_data_dir,
+        help="Path to the preprocessed_images directory.",
+    )
+    parser.add_argument(
+        "--splits-file",
+        type=Path,
+        default=splits_file,
+        help="Path to the data splits JSON (defaults to data_dir/data_splits_fatassigned.json).",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=default_output_dir,
+        help="Directory for experiment checkpoints and output results.",
+    )
+    parser.add_argument(
+        "--experiment",
+        action="append",
+        default=[],
+        help="Experiment in the form name=/path/to/checkpoint_best.pth (repeatable).",
+    )
+
+    args = parser.parse_args()
+
+    experiments = {}
+    for item in args.experiment:
+        if "=" not in item:
+            raise ValueError(f"Invalid --experiment '{item}', expected name=/path/to/checkpoint")
+        name, path = item.split("=", 1)
+        experiments[name] = Path(path)
+
+    if not experiments:
+        experiments = default_experiments
+
+    main(
+        data_dir=args.data_dir,
+        splits_file=args.splits_file,
+        output_dir=args.output_dir,
+        experiments=experiments,
+    )

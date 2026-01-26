@@ -21,6 +21,16 @@
             <span>Patient</span>
             <select id="patientSelect"></select>
           </label>
+          <label class="control">
+            <span>Split</span>
+            <select id="splitSelect">
+              <option value="train">train</option>
+              <option value="val">val</option>
+              <option value="test">test</option>
+              <option value="all">all</option>
+            </select>
+          </label>
+          <button id="sampleBtn" class="ghost">Sample</button>
           <button id="augmentBtn" class="ghost">Random Augment</button>
           <button id="refreshBtn" class="ghost">Reload List</button>
         </div>
@@ -63,6 +73,13 @@
             </div>
           </div>
           <canvas id="ffCanvas"></canvas>
+          <div class="legend">
+            <canvas id="ffLegend" height="16"></canvas>
+            <div class="legend-labels">
+              <span>0%</span>
+              <span>100%</span>
+            </div>
+          </div>
           <div class="slider">
             <input type="range" id="ffSlice" min="0" max="0" value="0" />
             <span id="ffSliceLabel">Slice 0</span>

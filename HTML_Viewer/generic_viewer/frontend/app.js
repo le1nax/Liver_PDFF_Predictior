@@ -1,6 +1,8 @@
 const patientSelect = document.getElementById("patientSelect");
 const refreshBtn = document.getElementById("refreshBtn");
 const augmentBtn = document.getElementById("augmentBtn");
+const splitSelect = document.getElementById("splitSelect");
+const sampleBtn = document.getElementById("sampleBtn");
 
 const t2Canvas = document.getElementById("t2Canvas");
 const ffCanvas = document.getElementById("ffCanvas");
@@ -16,11 +18,23 @@ const ffEroded = document.getElementById("ffEroded");
 
 const t2Meta = document.getElementById("t2Meta");
 const ffMeta = document.getElementById("ffMeta");
+const ffLegend = document.getElementById("ffLegend");
 
 const overlayColor = {
   t2: [228, 108, 42],
-  ff: [11, 110, 110],
+  ff: [228, 108, 42],
 };
+
+const customColormapValues = [
+  0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45,
+  0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0,
+];
+const customColormapColors = [
+  "#00008B", "#00008B", "#0000FF", "#00CED1", "#008000",
+  "#7CFC00", "#FFFF00", "#FFD700", "#FFA500", "#F28C28",
+  "#E8742A", "#DE5B2A", "#D44227", "#C92A22", "#B71B1B",
+  "#A51214", "#930A0D", "#8B0000", "#7A0000", "#6A0000", "#5A0000",
+];
 
 const imageCache = new Map();
 const augmentState = {
@@ -29,19 +43,36 @@ const augmentState = {
 };
 
 async function fetchPatients() {
-  const res = await fetch("/api/patients");
+  const res = await fetch(`/api/patients_with_ff?split=${splitSelect.value}`);
   const data = await res.json();
   patientSelect.innerHTML = "";
-  data.patients.forEach((pid) => {
+  data.patients.forEach((entry) => {
     const option = document.createElement("option");
-    option.value = pid;
-    option.textContent = pid;
+    option.value = entry.patient_id;
+    const suffix =
+      entry.median_ff_percent === null
+        ? "n/a"
+        : `${entry.median_ff_percent.toFixed(1)}%`;
+    option.textContent = `${entry.patient_id} (${suffix})`;
     patientSelect.appendChild(option);
   });
   if (data.patients.length > 0) {
-    patientSelect.value = data.patients[0];
+    patientSelect.value = data.patients[0].patient_id;
     await loadPatient();
   }
+}
+
+async function sampleFromSplit() {
+  const res = await fetch(`/api/training_sampler/sample?split=${splitSelect.value}`);
+  const data = await res.json();
+  if (data.error) {
+    t2Meta.textContent = data.error;
+    ffMeta.textContent = data.error;
+    return;
+  }
+  patientSelect.value = data.patient_id;
+  imageCache.clear();
+  await loadPatient();
 }
 
 async function loadPatient() {
@@ -109,7 +140,14 @@ async function renderView(kind) {
     }
   }
 
-  drawComposite(canvas, baseImg, maskImg, overlayColor[kind], augmentState[kind]);
+  drawComposite(
+    canvas,
+    baseImg,
+    maskImg,
+    overlayColor[kind],
+    augmentState[kind],
+    kind === "ff"
+  );
 }
 
 function loadImage(src) {
@@ -126,7 +164,70 @@ function loadImage(src) {
   return promise;
 }
 
-function drawComposite(canvas, baseImg, maskImg, color, augment) {
+function hexToRgb(hex) {
+  const value = hex.replace("#", "");
+  return [
+    parseInt(value.slice(0, 2), 16),
+    parseInt(value.slice(2, 4), 16),
+    parseInt(value.slice(4, 6), 16),
+  ];
+}
+
+function getCustomColor(value) {
+  const v = Math.max(0, Math.min(1, value));
+  for (let i = 0; i < customColormapValues.length - 1; i += 1) {
+    const v0 = customColormapValues[i];
+    const v1 = customColormapValues[i + 1];
+    if (v >= v0 && v <= v1) {
+      const t = v1 === v0 ? 0 : (v - v0) / (v1 - v0);
+      const [r0, g0, b0] = hexToRgb(customColormapColors[i]);
+      const [r1, g1, b1] = hexToRgb(customColormapColors[i + 1]);
+      return [
+        Math.round(r0 + (r1 - r0) * t),
+        Math.round(g0 + (g1 - g0) * t),
+        Math.round(b0 + (b1 - b0) * t),
+      ];
+    }
+  }
+  return hexToRgb(customColormapColors[customColormapColors.length - 1]);
+}
+
+function applyColormap(ctx, width, height) {
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const value = data[i] / 255.0;
+    const [r, g, b] = getCustomColor(value);
+    data[i] = r;
+    data[i + 1] = g;
+    data[i + 2] = b;
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function drawLegend(canvas) {
+  if (!canvas) return;
+  const width = canvas.parentElement ? canvas.parentElement.clientWidth : 300;
+  canvas.width = Math.max(10, width);
+  canvas.height = 16;
+  const ctx = canvas.getContext("2d");
+  const imageData = ctx.createImageData(canvas.width, canvas.height);
+  const data = imageData.data;
+  for (let x = 0; x < canvas.width; x += 1) {
+    const value = x / (canvas.width - 1);
+    const [r, g, b] = getCustomColor(value);
+    for (let y = 0; y < canvas.height; y += 1) {
+      const idx = (y * canvas.width + x) * 4;
+      data[idx] = r;
+      data[idx + 1] = g;
+      data[idx + 2] = b;
+      data[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function drawComposite(canvas, baseImg, maskImg, color, augment, useColormap = false) {
   const w = baseImg.width;
   const h = baseImg.height;
   const offscreen = document.createElement("canvas");
@@ -135,6 +236,9 @@ function drawComposite(canvas, baseImg, maskImg, color, augment) {
   const offCtx = offscreen.getContext("2d");
   offCtx.clearRect(0, 0, w, h);
   offCtx.drawImage(baseImg, 0, 0);
+  if (useColormap) {
+    applyColormap(offCtx, w, h);
+  }
 
   if (maskImg) {
     const overlayCanvas = document.createElement("canvas");
@@ -199,6 +303,7 @@ patientSelect.addEventListener("change", () => {
   loadPatient();
 });
 refreshBtn.addEventListener("click", fetchPatients);
+splitSelect.addEventListener("change", fetchPatients);
 t2Slice.addEventListener("input", () => renderView("t2"));
 ffSlice.addEventListener("input", () => renderView("ff"));
 t2Overlay.addEventListener("change", () => renderView("t2"));
@@ -213,5 +318,8 @@ ffOverlay.addEventListener("change", () => {
 });
 ffEroded.addEventListener("change", () => renderView("ff"));
 augmentBtn.addEventListener("click", randomizeAugment);
+sampleBtn.addEventListener("click", sampleFromSplit);
 
+drawLegend(ffLegend);
+window.addEventListener("resize", () => drawLegend(ffLegend));
 fetchPatients();

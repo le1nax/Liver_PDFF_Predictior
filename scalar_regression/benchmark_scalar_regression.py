@@ -6,8 +6,15 @@ Generates output in the same format as benchmark_pixel_level.py.
 
 import argparse
 import json
+import subprocess
+import sys
 from pathlib import Path
-from typing import List
+from typing import Any, List
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -16,32 +23,32 @@ from dataset import create_data_splits, load_data_splits
 from scalar_regression.dataset_scalar import LiverFatScalarDataset, pad_collate_scalar
 from scalar_regression.model_scalar import get_scalar_model
 
-REPO_ROOT = Path(__file__).resolve().parent
 
-
-def build_arg_parser() -> argparse.ArgumentParser:
+def build_arg_parser(
+    default_experiments: list[str],
+    default_checkpoint_name: str,
+    default_batch_size: int,
+    default_num_workers: int,
+) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Benchmark scalar regression experiments")
     parser.add_argument(
         "--experiments",
         nargs="+",
-        default=[
-            "scalar_regression/outputs/scalar_regression_run/experiment_20260122_095324",
-            "scalar_regression/outputs/scalar_regression_run/experiment_20260122_110236",
-        ],
+        default=default_experiments,
         help="Experiment directories containing checkpoint_best.pth",
     )
     parser.add_argument(
         "--checkpoint-name",
-        default="checkpoint_best.pth",
+        default=default_checkpoint_name,
         help="Checkpoint filename inside each experiment directory",
     )
     parser.add_argument(
         "--output",
-        default="outputs/benchmark_results_scalar_regression.json",
+        default=None,
         help="Path to save benchmark results JSON",
     )
-    parser.add_argument("--batch-size", type=int, default=2, help="Inference batch size")
-    parser.add_argument("--num-workers", type=int, default=2, help="DataLoader workers")
+    parser.add_argument("--batch-size", type=int, default=default_batch_size, help="Inference batch size")
+    parser.add_argument("--num-workers", type=int, default=default_num_workers, help="DataLoader workers")
     return parser
 
 
@@ -116,14 +123,43 @@ def build_model(checkpoint: dict, device: torch.device) -> torch.nn.Module:
     return model
 
 
+def _jsonify(obj: Any) -> Any:
+    if isinstance(obj, Path):
+        return str(obj)
+    if isinstance(obj, dict):
+        return {str(k): _jsonify(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_jsonify(v) for v in obj]
+    return obj
+
+
 def main() -> None:
-    args = build_arg_parser().parse_args()
+    default_checkpoint_name = "checkpoint_best.pth"
+    outputs_dir = REPO_ROOT / "outputs" / "scalar_regression_run"
+    default_experiments = [
+        "outputs/scalar_regression_run/experiment_20260123_131810",
+        "outputs/scalar_regression_run/experiment_20260123_131929",
+    ]
+    default_batch_size = 2
+    default_num_workers = 2
+
+    args = build_arg_parser(
+        default_experiments=default_experiments,
+        default_checkpoint_name=default_checkpoint_name,
+        default_batch_size=default_batch_size,
+        default_num_workers=default_num_workers,
+    ).parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     results = {}
     experiments = [resolve_experiment_dir(p) for p in args.experiments]
+    if args.output is None:
+        suffix = "_".join(exp.name for exp in experiments)
+        output_path = outputs_dir / "benchmark_evaluation" / suffix / "benchmark_results_scalar_regression.json"
+    else:
+        output_path = Path(args.output)
 
     for exp_dir in experiments:
         exp_name = exp_dir.name
@@ -171,13 +207,23 @@ def main() -> None:
             "patient_ids": patient_ids,
             "pred_medians": pred_medians,
             "gt_medians": gt_medians,
+            "config": _jsonify(config),
         }
 
-    output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
     print(f"\nDetailed results saved to: {output_path}")
+
+    eval_script = REPO_ROOT / "evaluate_benchmark.py"
+    if eval_script.exists():
+        print(f"Running evaluation: {eval_script} --results {output_path}")
+        subprocess.run(
+            [sys.executable, str(eval_script), "--results", str(output_path)],
+            check=False,
+        )
+    else:
+        print(f"Warning: evaluate_benchmark.py not found at {eval_script}")
 
 
 if __name__ == "__main__":

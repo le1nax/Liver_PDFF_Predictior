@@ -721,6 +721,16 @@ def generate_pdf_report(results: dict, output_dir: Path, min_gt_ff_pct: float = 
         pdf.savefig(fig, bbox_inches='tight')
         plt.close(fig)
 
+        # Config pages (if available in results)
+        for exp_name, data in results.items():
+            config = data.get("config")
+            if config is None:
+                continue
+            config_text = json.dumps(config, indent=2, sort_keys=True)
+            fig = create_text_figure(f"Config: {exp_name}", [config_text], fontsize=7)
+            pdf.savefig(fig, bbox_inches='tight')
+            plt.close(fig)
+
         # Metrics table
         fig = create_metrics_table_figure(results)
         pdf.savefig(fig, bbox_inches='tight')
@@ -840,7 +850,7 @@ def main():
     parser.add_argument('--min-gt-ff', type=float, default=0.0,
                         help='Minimum GT FF threshold as percentage (e.g., 15 for 15%%). Default: 0 (no filter)')
     parser.add_argument('--results', type=str,
-                        default="/home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/outputs/scalar_regression_run/benchmark_evaluation/benchmark_1/benchmark_results_scalar_regression.json",
+                        default="/home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/outputs/scalar_regression_run/benchmark_evaluation/experiment_20260123_131810_experiment_20260123_131929/benchmark_results_scalar_regression.json",
                         help='Path to benchmark_results.json')
     args = parser.parse_args()
 
