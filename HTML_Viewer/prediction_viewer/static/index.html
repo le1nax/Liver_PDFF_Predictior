@@ -498,6 +498,16 @@
                                oninput="updateOverlayOpacity()">
                         <span id="opacityValue">50%</span>
                     </div>
+                    <div class="opacity-slider">
+                        <label style="display:flex;align-items:center;gap:6px;">
+                            <input type="checkbox" id="segBoundaryToggle" checked onchange="toggleSegBoundary()">
+                            Segmentation boundary
+                        </label>
+                        <label style="display:flex;align-items:center;gap:6px;">
+                            <input type="checkbox" id="erodedBoundaryToggle" onchange="toggleErodedBoundary()">
+                            Eroded boundary
+                        </label>
+                    </div>
                     <div class="legend-container">
                         <div class="legend-title">Fat Fraction (%) - Custom 0.05 Colormap (hue-compressed)</div>
                         <div class="legend-colorbar" id="legendColorbar"></div>
@@ -648,6 +658,9 @@
         let predictionAvailable = false;
         let preloadToken = 0;
         let predictionCacheBust = 0;
+
+        let showSegBoundary = true;
+        let showErodedBoundary = false;
 
         // Image caches
         const imageCache = {
@@ -830,7 +843,7 @@
             }
 
             // Check cache first
-            const boundaryCacheKey = `${patientId}_${sliceIdx}`;
+            const boundaryCacheKey = `${patientId}_${sliceIdx}_${segImg.__boundaryKey || "seg"}`;
             if (boundaryCache[boundaryCacheKey]) {
                 console.log('[BOUNDARY] Using cached boundary');
                 return boundaryCache[boundaryCacheKey];
@@ -946,7 +959,7 @@
         }
 
         // Render T2 with Fat Fraction overlay (FF is already colored by backend)
-        function renderOverlayCanvasPrecolored(canvasId, t2Img, ffImg, opacity, segImg = null, patientId = null, sliceIdx = null) {
+        function renderOverlayCanvasPrecolored(canvasId, t2Img, ffImg, opacity, segImg = null, erodedImg = null, patientId = null, sliceIdx = null) {
             const canvas = document.getElementById(canvasId);
             const ctx = canvas.getContext('2d');
 
@@ -961,20 +974,26 @@
             ctx.drawImage(ffImg, 0, 0);
             ctx.globalAlpha = 1.0;
 
-            // Draw segmentation boundary if available
-            if (segImg) {
-                console.log('[OVERLAY] Drawing segmentation boundary on overlay canvas');
+            // Draw segmentation boundary if enabled
+            if (segImg && showSegBoundary) {
+                segImg.__boundaryKey = 'seg';
                 const boundaryCanvas = extractSegmentationBoundary(segImg, patientId, sliceIdx);
                 if (boundaryCanvas) {
-                    console.log('[OVERLAY] Boundary canvas created, drawing to overlay');
                     ctx.filter = 'blur(1px)';
                     ctx.drawImage(boundaryCanvas, 0, 0);
                     ctx.filter = 'none';
-                } else {
-                    console.log('[OVERLAY] WARNING: Boundary canvas is null');
                 }
-            } else {
-                console.log('[OVERLAY] No segmentation image available for boundary');
+            }
+
+            // Draw eroded segmentation boundary if enabled
+            if (erodedImg && showErodedBoundary) {
+                erodedImg.__boundaryKey = 'eroded';
+                const boundaryCanvas = extractSegmentationBoundary(erodedImg, patientId, sliceIdx);
+                if (boundaryCanvas) {
+                    ctx.filter = 'blur(1px)';
+                    ctx.drawImage(boundaryCanvas, 0, 0);
+                    ctx.filter = 'none';
+                }
             }
         }
 
@@ -1032,6 +1051,18 @@
         }
 
         // Update overlay opacity from slider
+        function toggleSegBoundary() {
+            showSegBoundary = document.getElementById('segBoundaryToggle').checked;
+            boundaryCache[`${currentPatientId}_${currentSlice}_seg`] = null;
+            updateImages();
+        }
+
+        function toggleErodedBoundary() {
+            showErodedBoundary = document.getElementById('erodedBoundaryToggle').checked;
+            boundaryCache[`${currentPatientId}_${currentSlice}_eroded`] = null;
+            updateImages();
+        }
+
         function updateOverlayOpacity() {
             overlayOpacity = parseInt(document.getElementById('overlayOpacity').value);
             document.getElementById('opacityValue').textContent = `${overlayOpacity}%`;
@@ -1316,6 +1347,7 @@
                     select.value = defaultExp;
                     currentExperiment = defaultExp;
                     updatePredictionButtonLabel();
+                    await onExperimentChange();
                 }
             } catch (err) {
                 console.warn('Failed to load experiments:', err);
@@ -1337,12 +1369,46 @@
         async function onExperimentChange() {
             currentExperiment = getSelectedExperiment();
             updatePredictionButtonLabel();
+            await updateSplitForExperiment();
             await refreshPredictionAvailability();
             imageCache.pred = {};
             histogramCache.pred = {};
             predictionCacheBust += 1;
             updateImages();
             updateHistogram();
+            if (currentPatientId) {
+                loadPatient(currentPatientId);
+            }
+        }
+
+
+        async function updateSplitForExperiment() {
+            const exp = getSelectedExperiment();
+            try {
+                const resp = await fetch(`${API_BASE}/api/prediction/splits`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ experiment: exp })
+                });
+                if (!resp.ok) {
+                    const data = await resp.json().catch(() => ({}));
+                    console.warn('Failed to update splits for experiment:', data.error || resp.statusText);
+                }
+            } catch (err) {
+                console.warn('Failed to update splits for experiment:', err);
+            }
+
+            try {
+                const resp = await fetch(`${API_BASE}/api/patients`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    allPatientsData = data.patients || [];
+                    patientsData = allPatientsData;
+                    onFilterChange();
+                }
+            } catch (err) {
+                console.warn('Failed to refresh patients after split change:', err);
+            }
         }
 
         async function refreshPredictionAvailability() {
@@ -1584,7 +1650,7 @@
             const t2Loaded = await loadImage('t2', patientId, sliceIdx);
             const ffLoaded = await loadImage('ff', patientId, sliceIdx);
             const segLoaded = await loadImage('seg', patientId, sliceIdx);
-            const erodedLoaded = maskVisible.eroded
+            const erodedLoaded = (maskVisible.eroded || showErodedBoundary)
                 ? await loadImage('seg_eroded', patientId, sliceIdx)
                 : Promise.resolve(null);
 
@@ -1606,7 +1672,7 @@
                 }
 
                 // Render T2 + FF overlay (FF is already colored) with segmentation boundary
-                renderOverlayCanvasPrecolored('overlayCanvas', t2Img, ffImg, overlayOpacity, segImg, patientId, sliceIdx);
+                renderOverlayCanvasPrecolored('overlayCanvas', t2Img, ffImg, overlayOpacity, segImg, erodedImg, patientId, sliceIdx);
 
                 // Render prediction if available
                 if (predImg) {

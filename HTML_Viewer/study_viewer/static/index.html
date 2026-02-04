@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Study Viewer</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <h1>Study Viewer</h1>
+        <p class="subtitle">Minimal viewer for the 150-case study</p>
+      </header>
+
+      <section class="auth">
+        <label for="password">Password</label>
+        <div class="row">
+          <input id="password" type="password" placeholder="Enter shared password" />
+          <button id="login">Enter</button>
+        </div>
+        <div id="auth-status" class="status"></div>
+      </section>
+
+      <section class="content hidden" id="content">
+        <div class="meta">
+          <div>Total cases: <span id="total">-</span></div>
+          <div>Loaded: <span id="loaded">-</span></div>
+        </div>
+        <div class="cases" id="cases"></div>
+      </section>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

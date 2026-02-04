@@ -44,7 +44,7 @@ def main() -> None:
     model_config = checkpoint.get("config", {}).get("model", {})
     base_channels = model_config.get("base_channels", 16)
 
-    model = get_scalar_model(in_channels=1, base_channels=base_channels).to(device)
+    model = get_scalar_model(in_channels=model_cfg.get("in_channels", 2), base_channels=base_channels).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
 

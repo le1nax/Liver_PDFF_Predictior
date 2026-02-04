@@ -64,7 +64,6 @@ PREDICTOR_LOCK = threading.Lock()
 PREDICTION_JOBS = {}  # key -> {'status': 'idle'|'running'|'completed'|'error', 'output_path': str, 'error': str, 'experiment': str}
 DEFAULT_PREDICTOR_CHECKPOINT = str(
     Path(__file__).resolve().parents[2]
-    / 'Liver_FF_Predictor'
     / 'outputs'
     / 'pixel_level_network'
     / 'experiment_001'
@@ -129,26 +128,27 @@ def load_or_generate_fatty_liver_yaml(base_dir):
 
 
 def load_data_splits(base_dir):
-    """Load train/val/test splits from data_splits_fatassigned.json."""
-    splits_path = Path(base_dir) / 'data_splits_fatassigned.json'
-
-    if not splits_path.exists():
-        print(f"Warning: data_splits_fatassigned.json not found at {splits_path}")
+    """Load train/val/test splits from the default split file."""
+    splits_path = _default_split_path(base_dir)
+    if not splits_path:
+        print(f"Warning: no split file found under {base_dir}")
         return None
+    return _load_splits_from_path(splits_path)
 
+
+def _load_splits_from_path(splits_path: Path):
+    if not splits_path or not splits_path.exists():
+        return None
     try:
         with open(splits_path, 'r') as f:
             splits = json.load(f)
-
         print(f"Using split file: {splits_path}")
         print(
-            "Loaded fat-assigned splits: "
+            "Loaded splits: "
             f"Train={len(splits.get('train', []))}, "
             f"Val={len(splits.get('val', []))}, "
             f"Test={len(splits.get('test', []))}"
         )
-
-        # Convert to sets for fast lookup, ensuring all are strings
         return {
             'train': set(str(pid) for pid in splits.get('train', [])),
             'val': set(str(pid) for pid in splits.get('val', [])),
@@ -156,8 +156,61 @@ def load_data_splits(base_dir):
             'median_ff': {str(pid): val for pid, val in splits.get('median_ff', {}).items()},
         }
     except Exception as e:
-        print(f"Error loading data_splits_fatassigned.json: {e}")
+        print(f"Error loading split file {splits_path}: {e}")
         return None
+
+
+def _default_split_path(base_dir: str):
+    base = Path(base_dir)
+    fat_path = base / 'data_splits_fatassigned.json'
+    if fat_path.exists():
+        return fat_path
+    std_path = base / 'data_splits.json'
+    if std_path.exists():
+        return std_path
+    return None
+
+
+def _experiment_split_path(experiment: str, base_dir: str):
+    if not experiment:
+        return None
+    exp_path = Path(experiment)
+    if exp_path.is_file():
+        return exp_path
+    if exp_path.is_dir():
+        exp_dir = exp_path
+    else:
+        exp_dir = _outputs_dir() / experiment
+    fat_path = exp_dir / 'data_splits_fatassigned.json'
+    if fat_path.exists():
+        return fat_path
+    std_path = exp_dir / 'data_splits.json'
+    if std_path.exists():
+        return std_path
+    return None
+
+
+def _apply_splits_to_patients(splits):
+    if not splits:
+        return
+    train = splits.get('train', set())
+    val = splits.get('val', set())
+    test = splits.get('test', set())
+    median_ff = splits.get('median_ff', {})
+    for patient in PATIENTS_DATA:
+        pid = str(patient.get('patient_id'))
+        if pid in train:
+            patient['data_split'] = 'train'
+        elif pid in val:
+            patient['data_split'] = 'val'
+        elif pid in test:
+            patient['data_split'] = 'test'
+        else:
+            patient['data_split'] = 'unknown'
+        if median_ff:
+            patient['median_ff'] = median_ff.get(pid)
+
+
 
 
 def scan_preprocessed_directory(base_dir):
@@ -487,6 +540,17 @@ def initialize():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/patients')
+def get_patients():
+    """Return current patient list (including split assignments)."""
+    if PREPROCESSED_DIR is None:
+        return jsonify({'error': 'Viewer not initialized with preprocessed_dir'}), 400
+    return jsonify({
+        'patients': PATIENTS_DATA,
+        'total_patients': len(PATIENTS_DATA)
+    })
 
 
 @app.route('/api/initialize/progress')
@@ -871,6 +935,44 @@ def get_rainbow_legend():
     return send_file(buf, mimetype='image/png')
 
 
+@app.route('/api/prediction/splits', methods=['POST'])
+def prediction_splits():
+    """Switch split mapping based on selected experiment."""
+    global DATA_SPLITS
+    data = request.json or {}
+    experiment = data.get('experiment')
+    if not PREPROCESSED_DIR:
+        return jsonify({'error': 'Viewer not initialized with preprocessed_dir'}), 400
+
+    split_path = _experiment_split_path(experiment, PREPROCESSED_DIR) if experiment else None
+    used_path = split_path
+    splits = _load_splits_from_path(split_path) if split_path else None
+    if splits is None:
+        default_path = _default_split_path(PREPROCESSED_DIR)
+        used_path = default_path
+        splits = _load_splits_from_path(default_path) if default_path else None
+
+    if splits is None:
+        return jsonify({
+            'error': 'No valid split file found',
+            'experiment': experiment,
+            'split_path': str(used_path) if used_path else None,
+        }), 404
+
+    DATA_SPLITS = splits
+    _apply_splits_to_patients(splits)
+
+    return jsonify({
+        'experiment': experiment,
+        'split_path': str(used_path) if used_path else None,
+        'counts': {
+            'train': len(splits.get('train', [])),
+            'val': len(splits.get('val', [])),
+            'test': len(splits.get('test', [])),
+        }
+    })
+
+
 @app.route('/api/prediction/experiments')
 def prediction_experiments():
     outputs_dir = _outputs_dir()
@@ -916,7 +1018,7 @@ def prediction_available():
 
 def _import_predictor_module():
     """Dynamically import the predictor module and return FatFractionPredictor class."""
-    predictor_root = Path(__file__).resolve().parents[2] / 'Liver_FF_Predictor'
+    predictor_root = Path(__file__).resolve().parents[2]
     if str(predictor_root) not in sys.path:
         sys.path.insert(0, str(predictor_root))
 
@@ -930,7 +1032,7 @@ def _import_predictor_module():
 
 
 def _outputs_dir():
-    return Path(__file__).resolve().parents[2] / 'Liver_FF_Predictor' / 'outputs' / 'pixel_level_network'
+    return Path(__file__).resolve().parents[2] / 'outputs' / 'pixel_level_network'
 
 
 def _predictions_dir():

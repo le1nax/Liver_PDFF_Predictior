@@ -75,11 +75,32 @@ def resolve_experiment_dir(exp_arg: str) -> Path:
     raise FileNotFoundError(f"Experiment directory not found. Tried: {tried}")
 
 
-def load_test_ids(data_dir: Path, data_cfg: dict) -> List[str]:
-    splits_file = data_dir / "data_splits.json"
-    if splits_file.exists():
-        _, _, test_ids = load_data_splits(str(data_dir))
-        return test_ids
+def resolve_split_file(exp_dir: Path, data_dir: Path) -> Path | None:
+    candidates = [
+        exp_dir / 'data_splits_fatassigned.json',
+        exp_dir / 'data_splits.json',
+        data_dir / 'data_splits_fatassigned.json',
+        data_dir / 'data_splits.json',
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+    return None
+
+
+
+def load_test_ids(data_dir: Path, data_cfg: dict, exp_dir: Path) -> List[str]:
+    splits_file = resolve_split_file(exp_dir, data_dir)
+    if splits_file is not None and splits_file.exists():
+        # load using helper if stored in experiment dir
+        if splits_file.name == 'data_splits_fatassigned.json':
+            with open(splits_file, 'r') as f:
+                splits = json.load(f)
+            return splits.get('test', [])
+        else:
+            # fall back to standard loader for data_splits.json in data_dir
+            _, _, test_ids = load_data_splits(str(data_dir))
+            return test_ids
 
     return create_data_splits(
         str(data_dir),
@@ -103,11 +124,11 @@ def build_dataset(data_dir: Path, test_ids: List[str], data_cfg: dict) -> LiverF
         mask_suffix=data_cfg.get("mask_suffix", "_segmentation"),
         input_mask_suffix=data_cfg.get("input_mask_suffix", "_t2_original_segmentation"),
         use_subdirs=data_cfg.get("use_subdirs", False),
-        use_patient_subdirs=data_cfg.get("use_patient_subdirs", False),
+        use_patient_subdirs=data_cfg.get("use_patient_subdirs", True),
         t2_subdir=data_cfg.get("t2_subdir", "t2_images"),
         ff_subdir=data_cfg.get("ff_subdir", "fat_fraction_maps"),
         mask_subdir=data_cfg.get("mask_subdir", "liver_masks"),
-        normalize_t2=data_cfg.get("normalize_t2", True),
+        normalize_t2=data_cfg.get("normalize_t2", False),
         normalize_ff=data_cfg.get("normalize_ff", True),
         mask_erosion=data_cfg.get("mask_erosion", 3),
         augment=False,
@@ -138,9 +159,13 @@ def main() -> None:
     default_checkpoint_name = "checkpoint_best.pth"
     outputs_dir = REPO_ROOT / "outputs" / "scalar_regression_run"
     default_experiments = [
-        "outputs/scalar_regression_run/experiment_20260123_131810"
+        "outputs/scalar_regression_run/experiment_20260129_145820",
+        "outputs/scalar_regression_run/experiment_20260129_150141",
+        "outputs/scalar_regression_run/experiment_20260129_150431",
+        "outputs/scalar_regression_run/experiment_20260129_150545"
+
     ]
-    default_batch_size = 2
+    default_batch_size = 1
     default_num_workers = 2
 
     args = build_arg_parser(
@@ -172,7 +197,7 @@ def main() -> None:
         data_cfg = config.get("data", {})
         data_dir = resolve_data_dir(config)
 
-        test_ids = load_test_ids(data_dir, data_cfg)
+        test_ids = load_test_ids(data_dir, data_cfg, exp_dir)
         dataset = build_dataset(data_dir, test_ids, data_cfg)
         loader = DataLoader(
             dataset,
@@ -196,7 +221,10 @@ def main() -> None:
         with torch.no_grad():
             for batch in tqdm(loader, desc=f"Processing {exp_name}"):
                 t2 = batch["t2"].to(device)
-                output = model(t2).squeeze(1).cpu().numpy()
+                mask = batch.get("mask")
+                if mask is None:
+                    raise KeyError("mask not found in batch. Ensure dataset provides masks for new model.")
+                output = model(t2, mask.to(device)).squeeze(1).cpu().numpy()
                 targets = batch["target"].squeeze(1).cpu().numpy()
                 for pid, pred, gt in zip(batch["patient_id"], output, targets):
                     patient_ids.append(pid)

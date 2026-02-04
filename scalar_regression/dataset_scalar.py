@@ -32,7 +32,7 @@ class LiverFatScalarDataset(Dataset):
         t2_subdir: str = "t2_images",
         ff_subdir: str = "fat_fraction_maps",
         mask_subdir: Optional[str] = "liver_masks",
-        normalize_t2: bool = True,
+        normalize_t2: bool = False,
         log_t2: bool = False,
         normalize_ff: bool = True,
         augment: bool = False,
@@ -258,7 +258,7 @@ class LiverFatScalarDataset(Dataset):
                 mask_data = binary_erosion(mask_data, structure=struct, iterations=self.mask_erosion).astype(
                     np.float32
                 )
-
+        #mask data ist now (eroded mask)
         input_mask = None
         if self.input_mask_suffix:
             input_mask_path = self._get_file_path(
@@ -286,9 +286,15 @@ class LiverFatScalarDataset(Dataset):
             "patient_id": patient_id,
         }
 
+        mask_tensor = None
         if input_mask is not None:
-            input_mask_tensor = torch.from_numpy(input_mask.copy()).unsqueeze(0)
-            sample["t2"] = sample["t2"] * input_mask_tensor
+            mask_tensor = torch.from_numpy(input_mask.copy()).unsqueeze(0)
+            sample["t2"] = sample["t2"] * mask_tensor
+        else:
+            mask_tensor = torch.ones_like(sample["t2"])
+            print("Warning: No input mask found, using all-ones mask.")
+
+        sample["mask"] = mask_tensor
 
         if self.transform:
             sample = self.transform(sample)
@@ -310,7 +316,7 @@ class ScalarInferenceDataset(Dataset):
         use_subdirs: bool = False,
         use_patient_subdirs: bool = False,
         t2_subdir: str = "t2_images",
-        normalize_t2: bool = True,
+        normalize_t2: bool = False,
         log_t2: bool = False,
         transform: Optional[Callable] = None,
         validate_files: bool = True,
@@ -455,6 +461,7 @@ def pad_collate_scalar(batch: List[dict]) -> dict:
 
     batch_size = len(batch)
     t2_batch = torch.zeros((batch_size, 1, max_d, max_h, max_w), dtype=torch.float32)
+    mask_batch = torch.zeros((batch_size, 1, max_d, max_h, max_w), dtype=torch.float32)
     targets = []
     patient_ids = []
 
@@ -462,12 +469,18 @@ def pad_collate_scalar(batch: List[dict]) -> dict:
         t2 = item["t2"]
         d, h, w = t2.shape[1:]
         t2_batch[i, :, :d, :h, :w] = t2
+        if "mask" in item and item["mask"] is not None:
+            mask = item["mask"]
+            mask_batch[i, :, :d, :h, :w] = mask
+        else:
+            mask_batch[i, :, :d, :h, :w] = 1.0
         patient_ids.append(item["patient_id"])
         if "target" in item:
             targets.append(item["target"])
 
     out = {
         "t2": t2_batch,
+        "mask": mask_batch,
         "patient_id": patient_ids,
     }
     if targets:

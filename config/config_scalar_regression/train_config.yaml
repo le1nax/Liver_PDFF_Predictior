@@ -18,10 +18,11 @@ data:
   ff_subdir: "fat_fraction_maps"
   mask_subdir: "liver_masks"
   mask_erosion: 3
+  normalize_t2: false
   fat_sampling:
-    enabled: true
+    enabled: false
     bin_edges: [0.0, 0.1, 0.2, 1.0]
-    bin_probs: [0.3, 0.5, 0.2]
+    bin_probs: [0.7, 0.1, 0.1]
 
   fat_split:
     enabled: true
@@ -44,6 +45,7 @@ training:
   gradient_clip: 0.0
 
 model:
+  in_channels: 2
   base_channels: 16
 
 optimizer:

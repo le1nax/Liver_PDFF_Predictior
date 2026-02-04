@@ -17,6 +17,7 @@ import os
 from torch.nn.parallel import DistributedDataParallel as DDP
 import yaml
 import json
+import shutil
 import time
 from torch.utils.data import DataLoader, DistributedSampler, WeightedRandomSampler
 from torch.utils.tensorboard import SummaryWriter
@@ -218,6 +219,17 @@ def main() -> None:
                 t2_suffix=data_cfg.get("t2_suffix", "_t2_original"),
             )
 
+    # Persist split file alongside the experiment outputs
+    try:
+        split_copy_name = split_filename if use_fat_split else 'data_splits.json'
+        if splits_file.exists():
+            shutil.copy2(splits_file, output_dir / split_copy_name)
+            print(f"Saved split file copy to: {output_dir / split_copy_name}")
+        else:
+            print(f"Warning: split file not found for copy: {splits_file}")
+    except Exception as exc:
+        print(f"Warning: failed to copy split file to experiment folder: {exc}")
+
     all_ids = train_ids + val_ids + test_ids
     temp_dataset = LiverFatScalarDataset(
         data_dir=str(data_dir),
@@ -232,6 +244,8 @@ def main() -> None:
         mask_subdir=data_cfg.get("mask_subdir", "liver_masks"),
         mask_erosion=data_cfg.get("mask_erosion", 3),
         input_mask_suffix=data_cfg.get("input_mask_suffix", "_t2_original_segmentation"),
+        normalize_t2=data_cfg.get("normalize_t2", True),
+        normalize_ff=data_cfg.get("normalize_ff", True),
         log_t2=data_cfg.get("log_t2", False),
         augment=data_cfg.get("augment", False),
         flip_prob=data_cfg.get("flip_prob", 0.5),
@@ -258,6 +272,8 @@ def main() -> None:
         mask_subdir=data_cfg.get("mask_subdir", "liver_masks"),
         mask_erosion=data_cfg.get("mask_erosion", 3),
         input_mask_suffix=data_cfg.get("input_mask_suffix", "_t2_original_segmentation"),
+        normalize_t2=data_cfg.get("normalize_t2", True),
+        normalize_ff=data_cfg.get("normalize_ff", True),
         log_t2=data_cfg.get("log_t2", False),
         augment=data_cfg.get("augment", False),
         flip_prob=data_cfg.get("flip_prob", 0.5),
@@ -279,6 +295,8 @@ def main() -> None:
         mask_subdir=data_cfg.get("mask_subdir", "liver_masks"),
         mask_erosion=data_cfg.get("mask_erosion", 3),
         input_mask_suffix=data_cfg.get("input_mask_suffix", "_t2_original_segmentation"),
+        normalize_t2=data_cfg.get("normalize_t2", True),
+        normalize_ff=data_cfg.get("normalize_ff", True),
         log_t2=data_cfg.get("log_t2", False),
         augment=False,
         validate_files=False,
@@ -319,6 +337,8 @@ def main() -> None:
                 mask_subdir=data_cfg.get("mask_subdir", "liver_masks"),
                 mask_erosion=data_cfg.get("mask_erosion", 3),
                 input_mask_suffix=data_cfg.get("input_mask_suffix", "_t2_original_segmentation"),
+                normalize_t2=data_cfg.get("normalize_t2", True),
+                normalize_ff=data_cfg.get("normalize_ff", True),
                 log_t2=data_cfg.get("log_t2", False),
                 augment=False,
                 validate_files=False,
@@ -359,7 +379,7 @@ def main() -> None:
         collate_fn=pad_collate_scalar,
     )
 
-    model = get_scalar_model(in_channels=1, base_channels=model_cfg.get("base_channels", 16)).to(device)
+    model = get_scalar_model(in_channels=model_cfg.get("in_channels", 2), base_channels=model_cfg.get("base_channels", 16)).to(device)
     if ddp_enabled:
         model = DDP(model, device_ids=[local_rank] if device.type == "cuda" else None)
 
@@ -423,11 +443,11 @@ def main() -> None:
             #     median_val = target.median()
             #     print(f"Epoch {epoch} Batch {batch_idx}: Median GT fat fraction = {median_val.item():.4f}")
 
-            output = model(t2)
+            pred = model(t2, batch["mask"].to(device))
             if weight_enabled:
-                loss = compute_weighted_scalar_loss(output, target, loss_type, beta, weight_cfg) / grad_accum_steps
+                loss = compute_weighted_scalar_loss(pred, target, loss_type, beta, weight_cfg) / grad_accum_steps
             else:
-                loss = criterion(output, target) / grad_accum_steps
+                loss = criterion(pred, target) / grad_accum_steps
             loss.backward()
 
             step_now = ((batch_idx + 1) % grad_accum_steps == 0)
@@ -438,7 +458,7 @@ def main() -> None:
                 optimizer.zero_grad()
 
             train_losses.append(loss.item() * grad_accum_steps)
-            metrics = compute_scalar_metrics(output, target)
+            metrics = compute_scalar_metrics(pred, target)
             for k, v in metrics.items():
                 train_metrics[k].append(v)
 
@@ -460,13 +480,13 @@ def main() -> None:
             for batch in val_loader:
                 t2 = batch["t2"].to(device)
                 target = batch["target"].to(device)
-                output = model(t2)
+                pred = model(t2, batch["mask"].to(device))
                 if weight_enabled:
-                    loss = compute_weighted_scalar_loss(output, target, loss_type, beta, weight_cfg)
+                    loss = compute_weighted_scalar_loss(pred, target, loss_type, beta, weight_cfg)
                 else:
-                    loss = criterion(output, target)
+                    loss = criterion(pred, target)
                 val_losses.append(loss.item())
-                metrics = compute_scalar_metrics(output, target)
+                metrics = compute_scalar_metrics(pred, target)
                 for k, v in metrics.items():
                     val_metrics[k].append(v)
 

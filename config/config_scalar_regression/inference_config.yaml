@@ -14,3 +14,4 @@ data:
   t2_suffix: "_t2_original"
   t2_subdir: "t2_images"
   log_t2: false
+  normalize_t2: false

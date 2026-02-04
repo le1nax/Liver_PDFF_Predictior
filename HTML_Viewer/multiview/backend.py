@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import gzip
 import json
 import mimetypes
 import os
@@ -13,8 +14,9 @@ from urllib.parse import parse_qs, urlparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
-DATA_ROOT = Path(__file__).resolve().parent
-WEB_ROOT = DATA_ROOT / "web"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DATA_ROOT = Path(os.environ.get("MULTIVIEW_DATA_DIR", REPO_ROOT / "datasets" / "preprocessed_images_fixed3"))
+WEB_ROOT = Path(__file__).resolve().parent / "web"
 
 
 DTYPE_MAP = {
@@ -27,6 +29,14 @@ DTYPE_MAP = {
     512: ("H", 2),  # uint16
     768: ("I", 4),  # uint32
 }
+
+
+def _open_nifti(path: Path):
+    if path.suffixes[-1:] == ['.gz']:
+        return gzip.open(path, 'rb')
+    return path.open('rb')
+
+
 
 
 class NiftiVolume:
@@ -44,7 +54,7 @@ class NiftiVolume:
         self._min, self._max = self._compute_min_max()
 
     def _read_header(self) -> Tuple[int, int, int, int, float, str]:
-        with self.path.open("rb") as f:
+        with _open_nifti(self.path) as f:
             header = f.read(348)
         sizeof_hdr_le = struct.unpack("<I", header[0:4])[0]
         if sizeof_hdr_le == 348:
@@ -68,12 +78,16 @@ class NiftiVolume:
         type_info = DTYPE_MAP.get(self._dtype_code)
         if not type_info:
             raise ValueError(f"Unsupported NIfTI datatype {self._dtype_code}")
-        typecode, _ = type_info
+        typecode, bytes_per = type_info
         count = self.width * self.height * self.depth
         data = array(typecode)
-        with self.path.open("rb") as f:
+        with _open_nifti(self.path) as f:
             f.seek(int(self._vox_offset))
-            data.fromfile(f, count)
+            if self.path.suffixes[-1:] == ['.gz']:
+                raw = f.read(count * bytes_per)
+                data.frombytes(raw)
+            else:
+                data.fromfile(f, count)
         if (self._endian == ">" and sys.byteorder == "little") or (
             self._endian == "<" and sys.byteorder == "big"
         ):
@@ -119,20 +133,29 @@ class NiftiVolume:
         return bytes(out)
 
 
+def _find_file(folder: Path, stem: str) -> Path | None:
+    for suffix in (".nii.gz", ".nii"):
+        candidate = folder / f"{stem}{suffix}"
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def scan_patients() -> Dict[str, Dict[str, Path]]:
     patients: Dict[str, Dict[str, Path]] = {}
     for entry in DATA_ROOT.iterdir():
         if not entry.is_dir():
             continue
-        t2_files = list(entry.glob("*_t2_aligned.nii"))
-        ff_files = list(entry.glob("*_ff_normalized.nii"))
-        seg_files = list(entry.glob("*_segmentation.nii"))
-        if not t2_files or not ff_files or not seg_files:
+        patient_id = entry.name
+        t2_path = _find_file(entry, f"{patient_id}_t2_aligned")
+        ff_path = _find_file(entry, f"{patient_id}_ff_normalized")
+        seg_path = _find_file(entry, f"{patient_id}_segmentation")
+        if not t2_path or not ff_path or not seg_path:
             continue
         patients[entry.name] = {
-            "t2": t2_files[0],
-            "ff": ff_files[0],
-            "seg": seg_files[0],
+            "t2": t2_path,
+            "ff": ff_path,
+            "seg": seg_path,
         }
     return patients
 

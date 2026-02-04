@@ -5,6 +5,7 @@ Compares experiments 5, 6, and 7 on the test set using median liver FF.
 
 import argparse
 import json
+import yaml
 import sys
 import subprocess
 from pathlib import Path
@@ -213,18 +214,31 @@ def main(data_dir: Path, splits_file: Path, output_dir: Path, experiments: dict[
 
     # Save detailed results
     output_dir.mkdir(parents=True, exist_ok=True)
-    results_file = output_dir / "benchmark_results_newdist.json"
+    results_file = output_dir / "benchmark_results_newdist.yaml"
     save_results = {}
     for exp_name in experiments:
+        rows = list(zip(
+            results[exp_name]['patient_ids'],
+            results[exp_name]['gt_medians'],
+            results[exp_name]['pred_medians'],
+        ))
+        rows.sort(key=lambda r: str(r[0]))
+        patients = [
+            {
+                'patient_id': str(pid),
+                'gt': float(gt),
+                'pred': float(pred),
+            }
+            for pid, gt, pred in rows
+        ]
         save_results[exp_name] = {
-            'patient_ids': results[exp_name]['patient_ids'],
-            'pred_medians': [float(x) for x in results[exp_name]['pred_medians']],
-            'gt_medians': [float(x) for x in results[exp_name]['gt_medians']],
+            'config': results[exp_name].get('config'),
+            'patients': patients,
         }
 
     with open(results_file, 'w') as f:
-        json.dump(save_results, f, indent=2)
-    print(f"\nDetailed results saved to: {results_file}")
+        yaml.safe_dump(save_results, f, sort_keys=False)
+    print(f"Detailed results saved to: {results_file}")
 
     eval_script = ROOT_DIR / "evaluate_benchmark.py"
     if eval_script.exists():

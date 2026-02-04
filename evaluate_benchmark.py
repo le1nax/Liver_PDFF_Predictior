@@ -4,6 +4,7 @@ Generates metrics and visualizations for experiment comparison.
 """
 
 import json
+import yaml
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -12,9 +13,33 @@ from scipy import stats
 from datetime import datetime
 
 
+
+
+def normalize_results(raw: dict) -> dict:
+    """Normalize results to {exp: {patient_ids, pred_medians, gt_medians, config}}."""
+    normalized = {}
+    for exp_name, data in raw.items():
+        if isinstance(data, dict) and 'patients' in data:
+            patients = data.get('patients', [])
+            patient_ids = [p.get('patient_id') for p in patients]
+            gt = [p.get('gt') for p in patients]
+            pred = [p.get('pred') for p in patients]
+            normalized[exp_name] = {
+                'patient_ids': patient_ids,
+                'gt_medians': gt,
+                'pred_medians': pred,
+                'config': data.get('config'),
+            }
+        else:
+            normalized[exp_name] = data
+    return normalized
+
+
 def load_results(results_path: str) -> dict:
     """Load benchmark results from JSON."""
     with open(results_path, 'r') as f:
+        if str(results_path).endswith((".yaml", ".yml")):
+            return yaml.safe_load(f)
         return json.load(f)
 
 
@@ -865,6 +890,7 @@ def main():
     # Load results
     print("Loading benchmark results...")
     results = load_results(results_path)
+    results = normalize_results(results)
     print(f"Found {len(results)} experiments")
 
     # Get total patient count before filtering

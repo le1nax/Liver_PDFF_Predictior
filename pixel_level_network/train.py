@@ -7,6 +7,7 @@ import sys
 import argparse
 import yaml
 import json
+import shutil
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -483,6 +484,19 @@ def main():
     # Create timestamped output directory under outputs/pixel_level_network
     timestamp = datetime.now().strftime("experiment_%Y%m%d_%H%M%S")
     config['output_dir'] = str(Path("outputs") / "pixel_level_network" / timestamp)
+
+    # Persist split file alongside the experiment outputs
+    try:
+        output_dir = Path(config['output_dir'])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        split_copy_name = split_filename if use_fat_split else 'data_splits.json'
+        if splits_file.exists():
+            shutil.copy2(splits_file, output_dir / split_copy_name)
+            print(f"Saved split file copy to: {output_dir / split_copy_name}")
+        else:
+            print(f"Warning: split file not found for copy: {splits_file}")
+    except Exception as exc:
+        print(f"Warning: failed to copy split file to experiment folder: {exc}")
 
     # Create dataloaders
     print("Creating dataloaders...")
