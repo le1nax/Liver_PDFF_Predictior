@@ -28,7 +28,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from dataset import create_data_splits, create_fat_stratified_splits, load_data_splits  # noqa: E402
 from scalar_regression.dataset_scalar import LiverFatScalarDataset, pad_collate_scalar  # noqa: E402
-from scalar_regression.model_scalar import get_scalar_model  # noqa: E402
+from scalar_regression.model_scalar_v2 import get_scalar_model  # noqa: E402
 from utils import save_checkpoint, load_checkpoint, EarlyStopping  # noqa: E402
 
 

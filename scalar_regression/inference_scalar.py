@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from scalar_regression.dataset_scalar import ScalarInferenceDataset, pad_collate_scalar
-from scalar_regression.model_scalar import get_scalar_model
+from scalar_regression.model_scalar_v2 import get_scalar_model
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

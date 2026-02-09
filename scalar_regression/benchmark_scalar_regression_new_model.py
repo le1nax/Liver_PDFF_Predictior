@@ -22,7 +22,7 @@ from tqdm import tqdm
 
 from dataset import create_data_splits, load_data_splits
 from scalar_regression.dataset_scalar import LiverFatScalarDataset, pad_collate_scalar
-from scalar_regression.model_scalar import get_scalar_model
+from scalar_regression.model_scalar_v2 import get_scalar_model
 
 
 def build_arg_parser(
