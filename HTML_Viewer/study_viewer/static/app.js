@@ -26,15 +26,19 @@ let sliceLoadToken = 0;
 let studyPreloadToken = 0;
 let preloadAroundTimer = null;
 let preloadAroundKey = null;
+let patientsFullyPreloaded = 0;
 
 const SLICE_IMAGE_CACHE_MAX = 320;
 const sliceImageCache = new Map(); // key -> { img, promise }
 
-const BACKGROUND_PRELOAD_CONCURRENCY = 6;
-const BACKGROUND_PRELOAD_THROTTLE_MS = 0;
+const STUDY_PRELOAD_CONCURRENCY = 6; // browser per-host limit is typically ~6
+const STUDY_PRELOAD_THROTTLE_MS = 0;
 const ADJACENT_SLICE_PRELOAD_RANGE = 8;
 
 const preloadElsByPid = new Map(); // pid -> HTMLElement
+const patientPreloadState = new Map(); // pid -> { kind, total, loaded, lastPct, done }
+const patientLoadedKeys = new Map(); // pid -> Set("kind:sliceIdx")
+const slicePrefetchInFlight = new Map(); // url -> Promise<void>
 
 // Classification state: { patient_id: grade }
 const classifications = {};
@@ -134,12 +138,78 @@ function isRowPreloadDone(patientId) {
   return Boolean(el && el.classList.contains('preload-done'));
 }
 
+function initPatientPreload(caseData) {
+  if (!caseData || !caseData.patient_id || (caseData.num_slices || 0) <= 0) return;
+  const pid = caseData.patient_id;
+  const kind = caseDefaultKind(caseData);
+  const total = Math.max(1, caseData.num_slices || 0);
+  patientPreloadState.set(pid, { kind, total, loaded: 0, lastPct: 0, done: false });
+  patientLoadedKeys.set(pid, new Set());
+}
+
+function markSlicePreloaded(patientId, kind, sliceIdx) {
+  const state = patientPreloadState.get(patientId);
+  if (!state) return;
+  if (state.kind !== kind) return;
+
+  const keys = patientLoadedKeys.get(patientId);
+  const k = `${kind}:${sliceIdx}`;
+  if (keys && keys.has(k)) return;
+  if (keys) keys.add(k);
+
+  state.loaded += 1;
+  const pct = Math.floor((state.loaded / state.total) * 100);
+  if (pct !== state.lastPct) {
+    state.lastPct = pct;
+    setRowPreloadPercent(patientId, pct);
+  }
+  if (!state.done && state.loaded >= state.total) {
+    state.done = true;
+    setRowPreloadPercent(patientId, 100);
+    patientsFullyPreloaded += 1;
+    updateLoadedMeta(patientsFullyPreloaded, studyWithDataCount);
+  }
+}
+
+function slicePreloadOrder(numSlices, centerIdx) {
+  const n = Math.max(0, numSlices || 0);
+  if (n <= 0) return [];
+  const c = Math.max(0, Math.min(n - 1, centerIdx || 0));
+  const order = [c];
+  for (let off = 1; order.length < n; off++) {
+    const left = c - off;
+    const right = c + off;
+    if (left >= 0) order.push(left);
+    if (right < n) order.push(right);
+  }
+  return order;
+}
+
+function prefetchSlice(patientId, kind, sliceIdx) {
+  if (!authToken) return Promise.reject(new Error('Not authenticated'));
+  const url = sliceUrl(patientId, kind, sliceIdx);
+  const inFlight = slicePrefetchInFlight.get(url);
+  if (inFlight) return inFlight;
+
+  const p = fetch(url, { cache: 'force-cache' }).then(async (res) => {
+    if (!res.ok) throw new Error(`Prefetch failed: ${res.status}`);
+    // Ensure full body is read so the browser can cache it.
+    await res.arrayBuffer();
+  }).finally(() => {
+    slicePrefetchInFlight.delete(url);
+  });
+
+  slicePrefetchInFlight.set(url, p);
+  return p;
+}
+
 function loadSliceImage(patientId, kind, sliceIdx) {
   if (!authToken) return Promise.reject(new Error('Not authenticated'));
 
   const key = sliceCacheKey(patientId, kind, sliceIdx);
   const cached = cacheGet(key);
   if (cached && cached.img && cached.img.complete && cached.img.naturalWidth > 0) {
+    markSlicePreloaded(patientId, kind, sliceIdx);
     return Promise.resolve(cached.img);
   }
   if (cached && cached.promise) return cached.promise;
@@ -149,6 +219,7 @@ function loadSliceImage(patientId, kind, sliceIdx) {
   const promise = new Promise((resolve, reject) => {
     img.onload = () => {
       cacheSet(key, { img });
+      markSlicePreloaded(patientId, kind, sliceIdx);
       resolve(img);
     };
     img.onerror = () => {
@@ -166,10 +237,7 @@ function preloadCaseMiddle(caseData) {
   if (isRowPreloadDone(caseData.patient_id)) return;
   const kind = caseDefaultKind(caseData);
   const idx = caseMiddleSliceIdx(caseData);
-  setRowPreloadPercent(caseData.patient_id, 0);
-  loadSliceImage(caseData.patient_id, kind, idx).then(() => {
-    setRowPreloadPercent(caseData.patient_id, 100);
-  }).catch(() => {});
+  loadSliceImage(caseData.patient_id, kind, idx).catch(() => {});
 }
 
 function preloadSlicesAround(patientId, kind, centerIdx, maxIdx) {
@@ -212,10 +280,9 @@ function preloadNeighborCases() {
 function startBackgroundPreload() {
   if (!clickableCases.length) return;
   const localToken = ++studyPreloadToken;
-  const total = clickableCases.length;
-  let done = 0;
+  const total = studyWithDataCount;
   let nextIndex = 0;
-  updateLoadedMeta(0, total);
+  updateLoadedMeta(patientsFullyPreloaded, total);
 
   const worker = async () => {
     while (localToken === studyPreloadToken) {
@@ -223,28 +290,29 @@ function startBackgroundPreload() {
       if (i >= total) return;
       const c = clickableCases[i];
       const pid = c.patient_id;
-      try {
-        if (!isRowPreloadDone(pid)) {
-          setRowPreloadPercent(pid, 0);
-          const kind = caseDefaultKind(c);
-          const idx = caseMiddleSliceIdx(c);
-          await loadSliceImage(pid, kind, idx);
-          setRowPreloadPercent(pid, 100);
+      const state = patientPreloadState.get(pid);
+      if (!state || state.done) continue;
+      const kind = state.kind;
+      const order = slicePreloadOrder(state.total, caseMiddleSliceIdx(c));
+      for (const sliceIdx of order) {
+        if (localToken !== studyPreloadToken) return;
+        if (state.done) break;
+        try {
+          await prefetchSlice(pid, kind, sliceIdx);
+          markSlicePreloaded(pid, kind, sliceIdx);
+        } catch (_) {
+          // ignore missing slices / auth issues
         }
-      } catch (_) {
-        // ignore missing images / auth issues
-      }
-      done += 1;
-      if (done % 5 === 0 || done === total) updateLoadedMeta(done, total);
-      if (BACKGROUND_PRELOAD_THROTTLE_MS > 0) {
-        await new Promise(r => setTimeout(r, BACKGROUND_PRELOAD_THROTTLE_MS));
+        if (STUDY_PRELOAD_THROTTLE_MS > 0) {
+          await new Promise(r => setTimeout(r, STUDY_PRELOAD_THROTTLE_MS));
+        }
       }
     }
   };
 
   // Non-blocking: kick off background workers
   setTimeout(() => {
-    for (let i = 0; i < BACKGROUND_PRELOAD_CONCURRENCY; i++) worker();
+    for (let i = 0; i < STUDY_PRELOAD_CONCURRENCY; i++) worker();
   }, 0);
 }
 
@@ -288,6 +356,10 @@ async function loadStudy() {
   clickableCases = data.cases.filter(c => c.num_slices > 0);
   const withData = clickableCases.length;
   studyWithDataCount = withData;
+  patientsFullyPreloaded = 0;
+  patientPreloadState.clear();
+  patientLoadedKeys.clear();
+  slicePrefetchInFlight.clear();
   totalEl.textContent = data.total_cases;
   updateLoadedMeta();
   classifiableCountEl.textContent = withData;
@@ -317,6 +389,7 @@ async function loadStudy() {
     preload.className = 'sb-item-preload';
     preload.textContent = c.num_slices > 0 ? '0%' : '';
     preloadElsByPid.set(c.patient_id, preload);
+    initPatientPreload(c);
 
     const statusDot = document.createElement('span');
     statusDot.className = 'sb-item-dot';
@@ -333,7 +406,7 @@ async function loadStudy() {
     sbList.appendChild(item);
   });
 
-  // Background preload of one representative slice per case
+  // Background preload all slices per case (default kind)
   startBackgroundPreload();
 }
 
@@ -466,7 +539,6 @@ function loadSlice() {
 
   loadSliceImage(pid, kind, idx).then(img => {
     if (token !== sliceLoadToken) return; // stale response
-    setRowPreloadPercent(pid, 100);
     currentImg = img;
     drawCanvas();
     updateOverlays();
