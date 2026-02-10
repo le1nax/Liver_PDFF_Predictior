@@ -7,29 +7,85 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="page">
-      <header>
+    <section class="auth" id="auth-section">
+      <div class="auth-box">
         <h1>Study Viewer</h1>
-        <p class="subtitle">Minimal viewer for the 150-case study</p>
-      </header>
-
-      <section class="auth">
+        <p class="auth-sub">150-case liver PDFF study</p>
         <label for="password">Password</label>
         <div class="row">
           <input id="password" type="password" placeholder="Enter shared password" />
           <button id="login">Enter</button>
         </div>
         <div id="auth-status" class="status"></div>
-      </section>
+      </div>
+    </section>
 
-      <section class="content hidden" id="content">
-        <div class="meta">
-          <div>Total cases: <span id="total">-</span></div>
-          <div>Loaded: <span id="loaded">-</span></div>
+    <section class="app hidden" id="app">
+      <aside class="sidebar" id="sidebar">
+        <div class="sb-header">
+          <div class="sb-title">Cases</div>
+          <div class="sb-meta"><span id="total">-</span> total, <span id="loaded">-</span></div>
+          <div class="sb-progress"><span id="classified-count">0</span> / <span id="classifiable-count">0</span> classified</div>
         </div>
-        <div class="cases" id="cases"></div>
-      </section>
-    </div>
+        <div class="sb-list" id="sb-list"></div>
+        <div class="sb-footer">
+          <button class="submit-btn" id="submit-btn" disabled>Submit Classifications</button>
+          <div class="submit-status" id="submit-status"></div>
+        </div>
+      </aside>
+
+      <main class="viewer-area" id="viewer-area">
+        <div class="viewer-center">
+          <div class="viewer-topbar">
+            <div></div>
+            <div class="nav-btns" id="nav-btns">
+              <button class="tb-btn" data-action="prev" title="Previous patient (←)">&#9664; Prev</button>
+              <button class="tb-btn" data-action="next" title="Next patient (→)">Next &#9654;</button>
+            </div>
+          </div>
+          <div class="canvas-wrap" id="canvas-wrap">
+            <canvas id="viewer-canvas"></canvas>
+            <div class="overlay overlay-tl" id="overlay-tl"></div>
+            <div class="overlay overlay-tr" id="overlay-tr"></div>
+            <div class="overlay overlay-bl" id="overlay-bl"></div>
+            <div class="overlay overlay-br" id="overlay-br"></div>
+          </div>
+          <div class="bottom-bar">
+            <div class="slice-slider-row">
+              <span class="slice-label" id="slice-label">- / -</span>
+              <input type="range" id="slice-slider" class="slice-slider" min="0" max="0" value="0" />
+            </div>
+            <div class="toolbar" id="toolbar">
+              <button class="tb-btn tb-active" data-tool="wl" title="Window/Level (W)">W/L</button>
+              <button class="tb-btn" data-tool="scroll" title="Scroll (S)">Scroll</button>
+              <button class="tb-btn" data-tool="zoom" title="Zoom (Z)">Zoom</button>
+              <button class="tb-btn" data-tool="pan" title="Pan (T)">Pan</button>
+              <span class="tb-sep"></span>
+              <button class="tb-btn" data-action="reset" title="Reset (Escape)">Reset</button>
+            </div>
+          </div>
+        </div>
+        <aside class="classify-sidebar" id="classify-panel">
+          <div class="classify-title">Classification</div>
+          <label class="classify-opt">
+            <input type="radio" name="grade" value="healthy" />
+            <span class="classify-chip chip-healthy">Healthy (0-5%)</span>
+          </label>
+          <label class="classify-opt">
+            <input type="radio" name="grade" value="mild" />
+            <span class="classify-chip chip-mild">Mild (5-15%)</span>
+          </label>
+          <label class="classify-opt">
+            <input type="radio" name="grade" value="moderate" />
+            <span class="classify-chip chip-moderate">Moderate (15-25%)</span>
+          </label>
+          <label class="classify-opt">
+            <input type="radio" name="grade" value="severe" />
+            <span class="classify-chip chip-severe">Severe (&gt;25%)</span>
+          </label>
+        </aside>
+      </main>
+    </section>
 
     <script src="/app.js"></script>
   </body>
