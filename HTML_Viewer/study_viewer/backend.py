@@ -83,8 +83,10 @@ def _load_study() -> None:
                     files[kind] = nii.name
                     if num_slices == 0:
                         try:
-                            img = sitk.ReadImage(str(nii))
-                            num_slices = img.GetSize()[2]
+                            reader = sitk.ImageFileReader()
+                            reader.SetFileName(str(nii))
+                            reader.ReadImageInformation()
+                            num_slices = int(reader.GetSize()[2])
                         except Exception:
                             pass
         case = {
@@ -113,7 +115,7 @@ def _load_volume(patient_id: str, kind: str) -> np.ndarray:
         raise FileNotFoundError(f"No {kind} file for {patient_id}")
     path = DATA_DIR / patient_id / filename
     image = sitk.ReadImage(str(path))
-    volume = sitk.GetArrayFromImage(image).astype(np.float32)
+    volume = sitk.GetArrayFromImage(image)
     _cache_set(cache_key, volume)
     return volume
 
@@ -349,4 +351,4 @@ if __name__ == "__main__":
     print(f"Starting server on https://localhost:{PORT}")
     print("Use the shared password to access the study view.")
     print("=" * 80)
-    app.run(host=HOST, port=PORT, debug=False)  
+    app.run(host=HOST, port=PORT, debug=False, threaded=True)

@@ -175,10 +175,29 @@ button:hover { filter: brightness(1.1); }
   gap: 6px;
 }
 
+.sb-item-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .sb-item-pid {
   font-size: 12px;
   font-weight: 600;
   font-family: "SF Mono", "Consolas", monospace;
+}
+
+.sb-item-preload {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: "SF Mono", "Consolas", monospace;
+  min-width: 34px;
+  text-align: right; /* rechtsbündig */
+}
+
+.sb-item-preload.preload-done {
+  color: #666;
 }
 
 /* Classification status dot */

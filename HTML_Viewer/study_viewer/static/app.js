@@ -30,9 +30,11 @@ let preloadAroundKey = null;
 const SLICE_IMAGE_CACHE_MAX = 320;
 const sliceImageCache = new Map(); // key -> { img, promise }
 
-const BACKGROUND_PRELOAD_CONCURRENCY = 2;
-const BACKGROUND_PRELOAD_THROTTLE_MS = 15;
+const BACKGROUND_PRELOAD_CONCURRENCY = 6;
+const BACKGROUND_PRELOAD_THROTTLE_MS = 0;
 const ADJACENT_SLICE_PRELOAD_RANGE = 8;
+
+const preloadElsByPid = new Map(); // pid -> HTMLElement
 
 // Classification state: { patient_id: grade }
 const classifications = {};
@@ -118,6 +120,20 @@ function updateLoadedMeta(preloadDone = null, preloadTotal = null) {
   }
 }
 
+function setRowPreloadPercent(patientId, percent) {
+  const el = preloadElsByPid.get(patientId);
+  if (!el) return;
+  const pct = Math.max(0, Math.min(100, Math.round(percent)));
+  const text = `${pct}%`;
+  if (el.textContent !== text) el.textContent = text;
+  el.classList.toggle('preload-done', pct >= 100);
+}
+
+function isRowPreloadDone(patientId) {
+  const el = preloadElsByPid.get(patientId);
+  return Boolean(el && el.classList.contains('preload-done'));
+}
+
 function loadSliceImage(patientId, kind, sliceIdx) {
   if (!authToken) return Promise.reject(new Error('Not authenticated'));
 
@@ -147,9 +163,13 @@ function loadSliceImage(patientId, kind, sliceIdx) {
 
 function preloadCaseMiddle(caseData) {
   if (!caseData || !caseData.patient_id || (caseData.num_slices || 0) <= 0) return;
+  if (isRowPreloadDone(caseData.patient_id)) return;
   const kind = caseDefaultKind(caseData);
   const idx = caseMiddleSliceIdx(caseData);
-  loadSliceImage(caseData.patient_id, kind, idx).catch(() => {});
+  setRowPreloadPercent(caseData.patient_id, 0);
+  loadSliceImage(caseData.patient_id, kind, idx).then(() => {
+    setRowPreloadPercent(caseData.patient_id, 100);
+  }).catch(() => {});
 }
 
 function preloadSlicesAround(patientId, kind, centerIdx, maxIdx) {
@@ -202,10 +222,15 @@ function startBackgroundPreload() {
       const i = nextIndex++;
       if (i >= total) return;
       const c = clickableCases[i];
-      const kind = caseDefaultKind(c);
-      const idx = caseMiddleSliceIdx(c);
+      const pid = c.patient_id;
       try {
-        await loadSliceImage(c.patient_id, kind, idx);
+        if (!isRowPreloadDone(pid)) {
+          setRowPreloadPercent(pid, 0);
+          const kind = caseDefaultKind(c);
+          const idx = caseMiddleSliceIdx(c);
+          await loadSliceImage(pid, kind, idx);
+          setRowPreloadPercent(pid, 100);
+        }
       } catch (_) {
         // ignore missing images / auth issues
       }
@@ -220,7 +245,7 @@ function startBackgroundPreload() {
   // Non-blocking: kick off background workers
   setTimeout(() => {
     for (let i = 0; i < BACKGROUND_PRELOAD_CONCURRENCY; i++) worker();
-  }, 100);
+  }, 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -268,6 +293,7 @@ async function loadStudy() {
   classifiableCountEl.textContent = withData;
 
   sbList.innerHTML = '';
+  preloadElsByPid.clear();
   data.cases.forEach(c => {
     const item = document.createElement('div');
     item.className = 'sb-item';
@@ -287,12 +313,22 @@ async function loadStudy() {
     pid.className = 'sb-item-pid';
     pid.textContent = c.patient_id;
 
+    const preload = document.createElement('span');
+    preload.className = 'sb-item-preload';
+    preload.textContent = c.num_slices > 0 ? '0%' : '';
+    preloadElsByPid.set(c.patient_id, preload);
+
     const statusDot = document.createElement('span');
     statusDot.className = 'sb-item-dot';
     statusDot.title = 'Not classified';
 
+    const right = document.createElement('div');
+    right.className = 'sb-item-right';
+    right.appendChild(statusDot);
+    right.appendChild(preload);
+
     top.appendChild(pid);
-    top.appendChild(statusDot);
+    top.appendChild(right);
     item.appendChild(top);
     sbList.appendChild(item);
   });
@@ -430,6 +466,7 @@ function loadSlice() {
 
   loadSliceImage(pid, kind, idx).then(img => {
     if (token !== sliceLoadToken) return; // stale response
+    setRowPreloadPercent(pid, 100);
     currentImg = img;
     drawCanvas();
     updateOverlays();
