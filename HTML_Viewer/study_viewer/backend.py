@@ -236,7 +236,10 @@ def get_slice(patient_id: str, kind: str, slice_idx: int):
         return jsonify({"error": str(e)}), 404
     slice_idx = max(0, min(slice_idx, volume.shape[0] - 1))
     png_bytes = _slice_to_png(volume[slice_idx], kind)
-    return app.response_class(png_bytes, mimetype="image/png")
+    resp = app.response_class(png_bytes, mimetype="image/png")
+    # Slices are immutable for a given patient/kind/slice_idx; enable browser caching.
+    resp.headers["Cache-Control"] = "private, max-age=86400, immutable"
+    return resp
 
 
 GRADE_LABELS = {

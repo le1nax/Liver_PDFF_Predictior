@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 let authToken = null;
 let studyCases = [];
+let clickableCases = [];
 let currentCase = null;
 let currentKind = 'mask';
 let activeItem = null;
@@ -18,6 +19,20 @@ let panY = 0;
 let activeTool = 'wl';
 let dragStart = null;
 let currentImg = null;
+
+// Preload/cache state
+let studyWithDataCount = 0;
+let sliceLoadToken = 0;
+let studyPreloadToken = 0;
+let preloadAroundTimer = null;
+let preloadAroundKey = null;
+
+const SLICE_IMAGE_CACHE_MAX = 320;
+const sliceImageCache = new Map(); // key -> { img, promise }
+
+const BACKGROUND_PRELOAD_CONCURRENCY = 2;
+const BACKGROUND_PRELOAD_THROTTLE_MS = 15;
+const ADJACENT_SLICE_PRELOAD_RANGE = 8;
 
 // Classification state: { patient_id: grade }
 const classifications = {};
@@ -53,6 +68,162 @@ const submitBtn = document.getElementById('submit-btn');
 const submitStatus = document.getElementById('submit-status');
 
 // ---------------------------------------------------------------------------
+// Image cache + preload helpers
+// ---------------------------------------------------------------------------
+function sliceCacheKey(patientId, kind, sliceIdx) {
+  return `${authToken || ''}:${patientId}:${kind}:${sliceIdx}`;
+}
+
+function sliceUrl(patientId, kind, sliceIdx) {
+  return `/api/slice/${patientId}/${kind}/${sliceIdx}?token=${authToken}`;
+}
+
+function cacheGet(key) {
+  const entry = sliceImageCache.get(key);
+  if (!entry) return null;
+  // LRU touch
+  sliceImageCache.delete(key);
+  sliceImageCache.set(key, entry);
+  return entry;
+}
+
+function cacheSet(key, entry) {
+  if (sliceImageCache.has(key)) sliceImageCache.delete(key);
+  sliceImageCache.set(key, entry);
+  while (sliceImageCache.size > SLICE_IMAGE_CACHE_MAX) {
+    const oldestKey = sliceImageCache.keys().next().value;
+    sliceImageCache.delete(oldestKey);
+  }
+}
+
+function clearSliceCache() {
+  sliceImageCache.clear();
+}
+
+function caseDefaultKind(caseData) {
+  return caseData.kinds && caseData.kinds.length > 0 ? caseData.kinds[0] : 'mask';
+}
+
+function caseMiddleSliceIdx(caseData) {
+  const n = Math.max(0, caseData.num_slices || 0);
+  if (n <= 0) return 0;
+  return Math.floor((n - 1) / 2);
+}
+
+function updateLoadedMeta(preloadDone = null, preloadTotal = null) {
+  if (preloadDone != null && preloadTotal != null && preloadDone < preloadTotal) {
+    loadedEl.textContent = `${studyWithDataCount} with images · preloading ${preloadDone}/${preloadTotal}`;
+  } else {
+    loadedEl.textContent = `${studyWithDataCount} with images`;
+  }
+}
+
+function loadSliceImage(patientId, kind, sliceIdx) {
+  if (!authToken) return Promise.reject(new Error('Not authenticated'));
+
+  const key = sliceCacheKey(patientId, kind, sliceIdx);
+  const cached = cacheGet(key);
+  if (cached && cached.img && cached.img.complete && cached.img.naturalWidth > 0) {
+    return Promise.resolve(cached.img);
+  }
+  if (cached && cached.promise) return cached.promise;
+
+  const url = sliceUrl(patientId, kind, sliceIdx);
+  const img = new window.Image();
+  const promise = new Promise((resolve, reject) => {
+    img.onload = () => {
+      cacheSet(key, { img });
+      resolve(img);
+    };
+    img.onerror = () => {
+      sliceImageCache.delete(key);
+      reject(new Error(`Failed to load image: ${url}`));
+    };
+  });
+  cacheSet(key, { img, promise });
+  img.src = url;
+  return promise;
+}
+
+function preloadCaseMiddle(caseData) {
+  if (!caseData || !caseData.patient_id || (caseData.num_slices || 0) <= 0) return;
+  const kind = caseDefaultKind(caseData);
+  const idx = caseMiddleSliceIdx(caseData);
+  loadSliceImage(caseData.patient_id, kind, idx).catch(() => {});
+}
+
+function preloadSlicesAround(patientId, kind, centerIdx, maxIdx) {
+  const start = Math.max(0, centerIdx - ADJACENT_SLICE_PRELOAD_RANGE);
+  const end = Math.min(maxIdx, centerIdx + ADJACENT_SLICE_PRELOAD_RANGE);
+  for (let i = start; i <= end; i++) {
+    if (i === centerIdx) continue;
+    loadSliceImage(patientId, kind, i).catch(() => {});
+  }
+}
+
+function schedulePreloadAroundCurrent() {
+  if (!currentCase) return;
+  const pid = currentCase.patient_id;
+  const kind = currentKind;
+  const idx = sliceIdx;
+  const key = `${pid}:${kind}:${idx}`;
+  if (key === preloadAroundKey) return;
+  preloadAroundKey = key;
+  if (preloadAroundTimer) clearTimeout(preloadAroundTimer);
+  preloadAroundTimer = setTimeout(() => {
+    if (!currentCase) return;
+    if (currentCase.patient_id !== pid) return;
+    if (currentKind !== kind) return;
+    preloadSlicesAround(pid, kind, idx, maxSlice);
+  }, 80);
+}
+
+function preloadNeighborCases() {
+  if (!currentCase || !clickableCases.length) return;
+  const idx = clickableCases.findIndex(c => c.patient_id === currentCase.patient_id);
+  if (idx < 0) return;
+  const offsets = [1, -1, 2, -2];
+  offsets.forEach(off => {
+    const j = idx + off;
+    if (j >= 0 && j < clickableCases.length) preloadCaseMiddle(clickableCases[j]);
+  });
+}
+
+function startBackgroundPreload() {
+  if (!clickableCases.length) return;
+  const localToken = ++studyPreloadToken;
+  const total = clickableCases.length;
+  let done = 0;
+  let nextIndex = 0;
+  updateLoadedMeta(0, total);
+
+  const worker = async () => {
+    while (localToken === studyPreloadToken) {
+      const i = nextIndex++;
+      if (i >= total) return;
+      const c = clickableCases[i];
+      const kind = caseDefaultKind(c);
+      const idx = caseMiddleSliceIdx(c);
+      try {
+        await loadSliceImage(c.patient_id, kind, idx);
+      } catch (_) {
+        // ignore missing images / auth issues
+      }
+      done += 1;
+      if (done % 5 === 0 || done === total) updateLoadedMeta(done, total);
+      if (BACKGROUND_PRELOAD_THROTTLE_MS > 0) {
+        await new Promise(r => setTimeout(r, BACKGROUND_PRELOAD_THROTTLE_MS));
+      }
+    }
+  };
+
+  // Non-blocking: kick off background workers
+  setTimeout(() => {
+    for (let i = 0; i < BACKGROUND_PRELOAD_CONCURRENCY; i++) worker();
+  }, 100);
+}
+
+// ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
 function authHeaders() {
@@ -71,6 +242,8 @@ async function login() {
   if (!res.ok) { authStatus.textContent = 'Invalid password.'; return; }
   const data = await res.json();
   authToken = data.token;
+  clearSliceCache();
+  studyPreloadToken += 1; // cancel any prior preload loops
   authSection.classList.add('hidden');
   appSection.classList.remove('hidden');
   await loadStudy();
@@ -87,9 +260,11 @@ async function loadStudy() {
   if (!res.ok) return;
   const data = await res.json();
   studyCases = data.cases;
-  const withData = data.cases.filter(c => c.num_slices > 0).length;
+  clickableCases = data.cases.filter(c => c.num_slices > 0);
+  const withData = clickableCases.length;
+  studyWithDataCount = withData;
   totalEl.textContent = data.total_cases;
-  loadedEl.textContent = `${withData} with images`;
+  updateLoadedMeta();
   classifiableCountEl.textContent = withData;
 
   sbList.innerHTML = '';
@@ -100,6 +275,7 @@ async function loadStudy() {
     if (c.num_slices > 0) {
       item.classList.add('sb-item-clickable');
       item.addEventListener('click', () => selectCase(c, item));
+      item.addEventListener('mouseenter', () => preloadCaseMiddle(c));
     } else {
       item.classList.add('sb-item-nodata');
     }
@@ -120,6 +296,9 @@ async function loadStudy() {
     item.appendChild(top);
     sbList.appendChild(item);
   });
+
+  // Background preload of one representative slice per case
+  startBackgroundPreload();
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +317,7 @@ function selectCase(caseData, itemEl) {
 
   resetView();
   loadSlice();
+  preloadNeighborCases();
   syncRadios();
 }
 
@@ -185,7 +365,7 @@ function updateSidebarDot(pid) {
 function updateProgress() {
   const count = Object.keys(classifications).length;
   classifiedCountEl.textContent = count;
-  const classifiable = studyCases.filter(c => c.num_slices > 0).length;
+  const classifiable = clickableCases.length;
   submitBtn.disabled = count < classifiable;
   if (count >= classifiable && classifiable > 0) {
     submitBtn.classList.add('submit-ready');
@@ -223,19 +403,17 @@ submitBtn.addEventListener('click', async () => {
 // Prev / Next patient navigation
 // ---------------------------------------------------------------------------
 function navigatePatient(direction) {
-  if (!studyCases.length) return;
-  const clickable = studyCases.filter(c => c.num_slices > 0);
-  if (!clickable.length) return;
+  if (!clickableCases.length) return;
 
   let idx = -1;
   if (currentCase) {
-    idx = clickable.findIndex(c => c.patient_id === currentCase.patient_id);
+    idx = clickableCases.findIndex(c => c.patient_id === currentCase.patient_id);
   }
   idx += direction;
-  if (idx < 0) idx = clickable.length - 1;
-  if (idx >= clickable.length) idx = 0;
+  if (idx < 0) idx = clickableCases.length - 1;
+  if (idx >= clickableCases.length) idx = 0;
 
-  const nextCase = clickable[idx];
+  const nextCase = clickableCases[idx];
   const itemEl = sbList.querySelector(`[data-pid="${nextCase.patient_id}"]`);
   if (itemEl) selectCase(nextCase, itemEl);
 }
@@ -245,13 +423,20 @@ function navigatePatient(direction) {
 // ---------------------------------------------------------------------------
 function loadSlice() {
   if (!currentCase) return;
-  const img = new window.Image();
-  img.onload = () => {
+  const pid = currentCase.patient_id;
+  const kind = currentKind;
+  const idx = sliceIdx;
+  const token = ++sliceLoadToken;
+
+  loadSliceImage(pid, kind, idx).then(img => {
+    if (token !== sliceLoadToken) return; // stale response
     currentImg = img;
     drawCanvas();
     updateOverlays();
-  };
-  img.src = `/api/slice/${currentCase.patient_id}/${currentKind}/${sliceIdx}?token=${authToken}`;
+    schedulePreloadAroundCurrent();
+  }).catch(() => {
+    // ignore load errors; keep last-rendered image
+  });
 }
 
 function drawCanvas() {
