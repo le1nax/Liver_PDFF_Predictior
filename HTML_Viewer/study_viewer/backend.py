@@ -200,6 +200,7 @@ def study():
             "patient_id": c["patient_id"],
             "num_slices": c["num_slices"],
             "kinds": list(c["files"].keys()),
+            "median_ff": c.get("median_ff"),  # DEBUG
         })
     return jsonify({
         "ok": True,
