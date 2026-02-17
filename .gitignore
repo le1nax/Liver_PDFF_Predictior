@@ -11,3 +11,7 @@ outputs/*
 *.mha
 *.mhd
 *.dcm
+
+# Claude Code
+CLAUDE.md
+.claude/
