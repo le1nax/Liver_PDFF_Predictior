@@ -67,7 +67,8 @@ const overlayTR = document.getElementById('overlay-tr');
 const overlayBL = document.getElementById('overlay-bl');
 const overlayBR = document.getElementById('overlay-br');
 
-const toolbar = document.getElementById('toolbar');
+const sliceSlider = document.getElementById('slice-slider');
+const sliceLabel = document.getElementById('slice-label');
 const classifyPanel = document.getElementById('classify-panel');
 const gradeRadios = document.querySelectorAll('input[name="grade"]');
 const submitBtn = document.getElementById('submit-btn');
@@ -424,6 +425,7 @@ function selectCase(caseData, itemEl) {
   maxSlice = Math.max(0, caseData.num_slices - 1);
   sliceIdx = Math.floor(maxSlice / 2);
 
+  syncSlider();
   resetView();
   loadSlice();
   preloadNeighborCases();
@@ -528,6 +530,24 @@ function navigatePatient(direction) {
 }
 
 // ---------------------------------------------------------------------------
+// Slice slider
+// ---------------------------------------------------------------------------
+function syncSlider() {
+  sliceSlider.max = maxSlice;
+  sliceSlider.value = sliceIdx;
+  sliceLabel.textContent = `${sliceIdx + 1} / ${maxSlice + 1}`;
+}
+
+sliceSlider.addEventListener('input', () => {
+  if (!currentCase) return;
+  const val = parseInt(sliceSlider.value, 10);
+  if (val !== sliceIdx) {
+    sliceIdx = val;
+    loadSlice();
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Image loading & rendering
 // ---------------------------------------------------------------------------
 function loadSlice() {
@@ -542,6 +562,7 @@ function loadSlice() {
     currentImg = img;
     drawCanvas();
     updateOverlays();
+    syncSlider();
     schedulePreloadAroundCurrent();
   }).catch(() => {
     // ignore load errors; keep last-rendered image
@@ -647,41 +668,25 @@ document.getElementById('nav-btns').addEventListener('click', e => {
   if (btn.dataset.action === 'next') navigatePatient(1);
 });
 
-toolbar.addEventListener('click', e => {
-  const btn = e.target.closest('.tb-btn');
-  if (!btn) return;
-  if (btn.dataset.action === 'reset') { resetView(); drawCanvas(); return; }
-  const tool = btn.dataset.tool;
-  if (tool) {
-    activeTool = tool;
-    toolbar.querySelectorAll('.tb-btn[data-tool]').forEach(b => b.classList.remove('tb-active'));
-    btn.classList.add('tb-active');
-    updateCursor();
-  }
-});
-
-function updateCursor() {
-  const cursors = { wl: 'ns-resize', scroll: 'row-resize', zoom: 'zoom-in', pan: 'grab' };
-  canvasWrap.style.cursor = cursors[activeTool] || 'default';
-}
-
 // ---------------------------------------------------------------------------
 // Keyboard shortcuts
 // ---------------------------------------------------------------------------
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
   const key = e.key.toLowerCase();
-  const toolMap = { w: 'wl', s: 'scroll', z: 'zoom', t: 'pan' };
-  if (toolMap[key]) {
-    activeTool = toolMap[key];
-    toolbar.querySelectorAll('.tb-btn[data-tool]').forEach(b => b.classList.remove('tb-active'));
-    const btn = toolbar.querySelector(`[data-tool="${activeTool}"]`);
-    if (btn) btn.classList.add('tb-active');
-    updateCursor();
-  }
   if (key === 'escape') { resetView(); drawCanvas(); }
   if (key === 'arrowleft') { navigatePatient(-1); }
   if (key === 'arrowright') { navigatePatient(1); }
+  if (key === 'arrowup' && currentCase) {
+    e.preventDefault();
+    const next = Math.max(0, sliceIdx - 1);
+    if (next !== sliceIdx) { sliceIdx = next; loadSlice(); }
+  }
+  if (key === 'arrowdown' && currentCase) {
+    e.preventDefault();
+    const next = Math.min(maxSlice, sliceIdx + 1);
+    if (next !== sliceIdx) { sliceIdx = next; loadSlice(); }
+  }
 
   // Number keys 1-4 for classification
   if (currentCase && ['1','2','3','4'].includes(key)) {

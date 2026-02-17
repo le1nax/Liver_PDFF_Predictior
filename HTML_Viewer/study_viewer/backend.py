@@ -52,7 +52,7 @@ def _cache_set(key: str, value: np.ndarray) -> None:
         _VOLUME_CACHE.pop(old, None)
 
 
-def _classify_nifti(filename: str) -> str | None:
+def _classify_nifti(filename: str) -> str | N   one:
     name = filename.lower()
     if "segmentation" in name:
         return "mask"

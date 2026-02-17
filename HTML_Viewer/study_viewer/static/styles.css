@@ -321,18 +321,111 @@ button:hover { filter: brightness(1.1); }
 
 /* ---- Bottom bar ---- */
 .bottom-bar {
-  border-top: 1px solid var(--border);
-  background: #1a1a1a;
+  background: #111;
+  padding: 10px 16px 8px;
 }
 
-/* ---- Toolbar ---- */
-.toolbar {
+.slice-slider-row {
   display: flex;
-  gap: 4px;
-  padding: 6px 10px;
   align-items: center;
+  gap: 12px;
 }
 
+.slice-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: #333;
+  outline: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.slice-slider:hover {
+  background: #3a3a3a;
+}
+
+/* Track – WebKit */
+.slice-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--accent), #e8854a);
+  opacity: 0.35;
+}
+
+.slice-slider:hover::-webkit-slider-runnable-track {
+  opacity: 0.5;
+}
+
+/* Track – Firefox */
+.slice-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--accent), #e8854a);
+  border: none;
+  opacity: 0.35;
+}
+
+.slice-slider:hover::-moz-range-track {
+  opacity: 0.5;
+}
+
+/* Thumb – WebKit */
+.slice-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #e8854a;
+  margin-top: -6px;
+  box-shadow: 0 0 6px rgba(197, 90, 17, 0.5);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.slice-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 12px rgba(197, 90, 17, 0.7);
+}
+
+.slice-slider:active::-webkit-slider-thumb {
+  transform: scale(1.1);
+  box-shadow: 0 0 16px rgba(197, 90, 17, 0.9);
+}
+
+/* Thumb – Firefox */
+.slice-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #e8854a;
+  box-shadow: 0 0 6px rgba(197, 90, 17, 0.5);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.slice-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 12px rgba(197, 90, 17, 0.7);
+}
+
+.slice-slider:active::-moz-range-thumb {
+  transform: scale(1.1);
+  box-shadow: 0 0 16px rgba(197, 90, 17, 0.9);
+}
+
+.slice-label {
+  font-family: "SF Mono", "Consolas", monospace;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  min-width: 56px;
+  text-align: right;
+}
+
+/* ---- Toolbar (nav buttons) ---- */
 .tb-btn {
   background: #333;
   color: #ccc;
@@ -347,24 +440,6 @@ button:hover { filter: brightness(1.1); }
 .tb-btn:hover {
   background: #444;
   filter: none;
-}
-
-.tb-btn.tb-active {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-}
-
-.tb-btn[data-action="reset"] {
-  background: #2a2a2a;
-  margin-left: 4px;
-}
-
-.tb-sep {
-  width: 1px;
-  height: 20px;
-  background: #444;
-  margin: 0 4px;
 }
 
 /* ---- Classification sidebar (right) ---- */
