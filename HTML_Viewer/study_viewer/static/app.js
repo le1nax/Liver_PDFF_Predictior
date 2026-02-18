@@ -602,8 +602,7 @@ function updateOverlays() {
     overlayBR.textContent = '';
     return;
   }
-  const ffDebug = currentCase.median_ff != null ? ` — FF: ${(currentCase.median_ff * 100).toFixed(1)}%` : '';
-  overlayTL.innerHTML = `<div>${currentCase.patient_id}${ffDebug}</div>`;
+  overlayTL.innerHTML = `<div>${currentCase.patient_id}</div>`;
   overlayTR.innerHTML = `<div>${currentKind.toUpperCase()}</div>`;
   overlayBL.innerHTML = `<div>Slice: ${sliceIdx + 1} / ${maxSlice + 1}</div>`;
   overlayBR.innerHTML = `<div>W/L: ${contrast.toFixed(2)} / ${brightness.toFixed(2)}</div><div>Zoom: ${(zoom * 100).toFixed(0)}%</div>`;
