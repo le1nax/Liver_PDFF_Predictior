@@ -63,16 +63,28 @@ def _classify_nifti(filename: str) -> str | None:
     return None
 
 
+def _load_excluded_patients() -> set:
+    """Load patient IDs to exclude from the exclusion list."""
+    exclude_path = TEST_DATA_DIR / "exluding_patients.txt"
+    if not exclude_path.exists():
+        return set()
+    with open(exclude_path) as f:
+        return {line.strip() for line in f if line.strip()}
+
+
 def _load_study() -> None:
     """Parse study_test_set.yaml and discover NIfTI files per patient."""
     yaml_path = TEST_DATA_DIR / "study_test_set.yaml"
     if not yaml_path.exists():
         print(f"WARNING: {yaml_path} not found")
         return
+    excluded = _load_excluded_patients()
     with open(yaml_path) as f:
         manifest = yaml.safe_load(f)
     for entry in manifest.get("cases", []):
         pid = str(entry["patient_id"])
+        if pid in excluded:
+            continue
         patient_dir = DATA_DIR / pid
         files: Dict[str, str] = {}
         num_slices = 0

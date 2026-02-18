@@ -660,6 +660,12 @@ canvasWrap.addEventListener('wheel', e => {
 // ---------------------------------------------------------------------------
 // Toolbar
 // ---------------------------------------------------------------------------
+// Reset view button
+document.getElementById('reset-view-btn').addEventListener('click', () => {
+  resetView();
+  drawCanvas();
+});
+
 // Nav buttons (top-right)
 document.getElementById('nav-btns').addEventListener('click', e => {
   const btn = e.target.closest('.tb-btn');
