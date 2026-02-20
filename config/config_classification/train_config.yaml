@@ -1,0 +1,76 @@
+# Configuration file for liver fat fraction classification training
+
+data:
+  data_dir: "datasets/patient_data_regression_setup"
+  use_patient_subdirs: true
+  use_subdirs: false
+  t2_suffix: "_t2_original"
+  ff_suffix: "_ff_normalized"
+  mask_suffix: "_segmentation"
+  input_mask_suffix: "_t2_original_segmentation"
+  log_t2: false
+  augment: true
+  flip_prob: 0.5
+  rotate_prob: 0.2
+  rotate_angle_min: 1.0
+  rotate_angle_max: 15.0
+  t2_subdir: "t2_images"
+  ff_subdir: "fat_fraction_maps"
+  mask_subdir: "liver_masks"
+  mask_erosion: 3
+  normalize_t2: true
+  fat_sampling:
+    enabled: false
+    bin_edges: [0.0, 0.05, 0.15, 0.25, 1.0]
+    bin_probs: [0.4, 0.25, 0.2, 0.15]
+
+  fat_split:
+    enabled: true
+    bin_edges: [0.0, 0.05, 0.15, 0.25, 1.0]
+    split_file: "data_splits_fatassigned.json"
+    seed: 42
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+  random_seed: 42
+
+training:
+  num_epochs: 200
+  batch_size: 1
+  grad_accum_steps: 8
+  grad_accum_enabled: true
+  num_workers: 2
+  seed: 42
+  gradient_clip: 1.0
+  early_stopping_patience: 35
+
+model:
+  in_channels: 2
+  base_channels: 16
+  num_classes: 4
+  ordinal: false
+
+optimizer:
+  type: "adamw"
+  lr: 0.0001
+  weight_decay: 0.00001
+
+loss:
+  type: "cross_entropy"
+  class_weights: [1.0, 1.0, 1.0, 1.0]
+  label_smoothing: 0.1
+
+classification:
+  thresholds: [0.05, 0.15, 0.25]
+
+scheduler:
+  type: "cosine"
+  eta_min: 0.000001
+
+output_dir: "outputs/classification_run"
+
+device: "cuda"
+
+ddp:
+  enabled: false
+  backend: "nccl"

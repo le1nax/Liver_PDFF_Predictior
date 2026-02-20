@@ -72,7 +72,9 @@ class LiverFatDataset(Dataset):
         cache_data: bool = False,
         clip_ff_range: Tuple[float, float] = (0.0, 1.0),
         validate_files: bool = True,
-        mask_erosion: int = 0
+        mask_erosion: int = 0,
+        crop_to_mask: bool = False,
+        crop_margin: int = 5
     ):
         """
         Args:
@@ -128,6 +130,8 @@ class LiverFatDataset(Dataset):
         self.cache_data = cache_data
         self.clip_ff_range = clip_ff_range
         self.mask_erosion = mask_erosion
+        self.crop_to_mask = crop_to_mask
+        self.crop_margin = crop_margin
 
         # Get patient IDs
         if patient_ids is None:
@@ -352,6 +356,23 @@ class LiverFatDataset(Dataset):
             # Use 3D structuring element for isotropic erosion
             struct = generate_binary_structure(3, 1)  # 3D cross/connectivity=1
             mask_data = binary_erosion(mask_data, structure=struct, iterations=self.mask_erosion).astype(np.float32)
+
+        # Crop to mask bounding box if requested
+        if self.crop_to_mask and mask_data is not None and mask_data.any():
+            coords = np.where(mask_data > 0)
+            d_min, d_max = coords[0].min(), coords[0].max()
+            h_min, h_max = coords[1].min(), coords[1].max()
+            w_min, w_max = coords[2].min(), coords[2].max()
+            m = self.crop_margin
+            d_min = max(0, d_min - m)
+            h_min = max(0, h_min - m)
+            w_min = max(0, w_min - m)
+            d_max = min(t2_data.shape[0] - 1, d_max + m)
+            h_max = min(t2_data.shape[1] - 1, h_max + m)
+            w_max = min(t2_data.shape[2] - 1, w_max + m)
+            t2_data = t2_data[d_min:d_max+1, h_min:h_max+1, w_min:w_max+1]
+            ff_data = ff_data[d_min:d_max+1, h_min:h_max+1, w_min:w_max+1]
+            mask_data = mask_data[d_min:d_max+1, h_min:h_max+1, w_min:w_max+1]
 
         # Convert to tensors and add channel dimension (ensure float32)
         t2_tensor = torch.from_numpy(t2_data.astype(np.float32)).unsqueeze(0)  # [1, D, H, W]

@@ -1,0 +1,99 @@
+# Configuration file for Swin-UNETR fat fraction prediction training
+
+# Data settings
+data:
+  data_dir: "datasets/preprocessed_images_fixed3"
+
+  use_patient_subdirs: true
+  use_subdirs: false
+
+  t2_suffix: "_t2_aligned"
+  ff_suffix: "_ff_normalized"
+  mask_suffix: "_segmentation"
+
+  t2_subdir: "t2_images"
+  ff_subdir: "fat_fraction_maps"
+  mask_subdir: "liver_masks"
+
+  # Data splits
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+  random_seed: 42
+
+  log_t2: false
+
+  # Fat-aware volume sampling
+  fat_sampling:
+    enabled: true
+    bin_edges: [0.0, 0.1, 0.2, 1.0]
+    bin_probs: [0.3, 0.5, 0.2]
+
+  # Fat-stratified split generation
+  fat_split:
+    enabled: true
+    bin_edges: [0.0, 0.05, 0.15, 0.25, 1.0]
+    split_file: "data_splits_fatassigned.json"
+    seed: 42
+
+  mask_erosion: 3
+
+  # Spatial augmentations
+  augment: true
+  flip_prob: 0.5
+  rotate_prob: 0.2
+  rotate_angle_min: 1.0
+  rotate_angle_max: 15.0
+
+  # Crop to liver mask bounding box (reduces volume size and memory)
+  crop_to_mask: true
+  crop_margin: 5
+
+# Model architecture — Swin-UNETR
+model:
+  type: "swin_unetr"
+  n_channels: 1
+  n_outputs: 1
+  feature_size: 48
+  depths: [2, 2, 2, 2]
+  num_heads: [3, 6, 12, 24]
+  drop_rate: 0.0
+  attn_drop_rate: 0.0
+  use_checkpoint: true  # gradient checkpointing — saves ~40% GPU memory
+  pretrained_weights: null  # set to URL or local path for MONAI SSL weights
+
+# Loss function
+loss:
+  type: "combined"
+  mse_weight: 1.0
+  l1_weight: 0.0
+  ssim_weight: 0.0
+  smooth_l1_weight: 0.0
+  mean_ff_weight: 0.1
+  reduction: "mean"
+
+# Optimizer
+optimizer:
+  type: "adamw"
+  lr: 0.0001
+  weight_decay: 0.01
+  betas: [0.9, 0.999]
+
+# Learning rate scheduler — linear warmup then cosine decay
+scheduler:
+  type: "cosine_with_warmup"
+  warmup_epochs: 10
+  eta_min: 0.000001
+
+# Training settings
+training:
+  num_epochs: 200
+  batch_size: 1
+  gradient_accumulation_steps: 4  # effective batch size = 4
+  num_workers: 4
+  gradient_clip: 1.0
+  early_stopping_patience: 30
+  early_stopping_delta: 0.0001
+
+# Output directory
+output_dir: "./outputs/swin_unetr_run"

@@ -1,0 +1,28 @@
+# Configuration file for Swin-UNETR fat fraction inference
+
+# Model checkpoint
+checkpoint_path: "./outputs/swin_unetr_run/checkpoint_best.pth"
+
+# Inference mode: "single", "batch", "validation", or "yaml"
+mode: "yaml"
+
+# Single file inference
+single:
+  t2_path: "/path/to/t2_image.nii.gz"
+  output_path: "./predictions/prediction.nii.gz"
+  gt_path: null
+  visualize: true
+
+# Batch inference
+batch:
+  input_dir: "/path/to/t2_images/"
+  output_dir: "./predictions/"
+  t2_suffix: "_t2_aligned"
+
+# YAML-based inference
+yaml:
+  inference_yaml: "./datasets/preprocessed_images_fixed3/test_inference.yaml"
+  output_dir: "./predictions/swin_unetr/"
+
+# Device
+device: "cuda"
