@@ -1,0 +1,690 @@
+submitted_at: '2026-02-20T11:33:11.759680'
+total_classified: 114
+correct: 65
+incorrect: 49
+accuracy: 0.5702
+results:
+- patient_id: '9149357101'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9188986001'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9156553101'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: false
+- patient_id: '9162382601'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '0000020507'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9184225001'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9183944801'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9159113501'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: moderate
+  ground_truth_label: Moderate Steatosis (15-25%)
+  correct: false
+- patient_id: '9173667201'
+  classification: severe
+  classification_label: Severe Steatosis (>25%)
+  ground_truth: severe
+  ground_truth_label: Severe Steatosis (>25%)
+  correct: true
+- patient_id: '0000626275'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9175571701'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9178896301'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9187278401'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9179886001'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9177974601'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9176936101'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9179477702'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9163424902'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9176982801'
+  classification: moderate
+  classification_label: Moderate Steatosis (15-25%)
+  ground_truth: moderate
+  ground_truth_label: Moderate Steatosis (15-25%)
+  correct: true
+- patient_id: '9175544701'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9163578501'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9191505801'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9166617801'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: true
+- patient_id: '9163998901'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9163352901'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: true
+- patient_id: '9169771201'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9190810401'
+  classification: moderate
+  classification_label: Moderate Steatosis (15-25%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9156963401'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9151899001'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: true
+- patient_id: '9159684701'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: 0000807291
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: 0000577883
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: false
+- patient_id: 0000858607
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9149561702'
+  classification: moderate
+  classification_label: Moderate Steatosis (15-25%)
+  ground_truth: moderate
+  ground_truth_label: Moderate Steatosis (15-25%)
+  correct: true
+- patient_id: '9161101101'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9176798701'
+  classification: moderate
+  classification_label: Moderate Steatosis (15-25%)
+  ground_truth: severe
+  ground_truth_label: Severe Steatosis (>25%)
+  correct: false
+- patient_id: '9153798201'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9165256401'
+  classification: severe
+  classification_label: Severe Steatosis (>25%)
+  ground_truth: severe
+  ground_truth_label: Severe Steatosis (>25%)
+  correct: true
+- patient_id: '9186845701'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9165595401'
+  classification: moderate
+  classification_label: Moderate Steatosis (15-25%)
+  ground_truth: severe
+  ground_truth_label: Severe Steatosis (>25%)
+  correct: false
+- patient_id: '9167712201'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: moderate
+  ground_truth_label: Moderate Steatosis (15-25%)
+  correct: false
+- patient_id: 0000822679
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9177343901'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9174026401'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: true
+- patient_id: '9164019601'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9166885301'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9150700001'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: moderate
+  ground_truth_label: Moderate Steatosis (15-25%)
+  correct: false
+- patient_id: 0001409274
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9180922001'
+  classification: moderate
+  classification_label: Moderate Steatosis (15-25%)
+  ground_truth: severe
+  ground_truth_label: Severe Steatosis (>25%)
+  correct: false
+- patient_id: 0000322494
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: severe
+  ground_truth_label: Severe Steatosis (>25%)
+  correct: false
+- patient_id: '9154307701'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9154812401'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9155037401'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9146617201'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9179162001'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9187283901'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9172794101'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: moderate
+  ground_truth_label: Moderate Steatosis (15-25%)
+  correct: false
+- patient_id: '9180519901'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9185044101'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9162557902'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9181938701'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: severe
+  ground_truth_label: Severe Steatosis (>25%)
+  correct: false
+- patient_id: '9179078701'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9168240101'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: false
+- patient_id: '9152842601'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: moderate
+  ground_truth_label: Moderate Steatosis (15-25%)
+  correct: false
+- patient_id: '9149855001'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9172655501'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: moderate
+  ground_truth_label: Moderate Steatosis (15-25%)
+  correct: false
+- patient_id: '9176337201'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: severe
+  ground_truth_label: Severe Steatosis (>25%)
+  correct: false
+- patient_id: 0000978000
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: 0000845000
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9189979201'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9177121701'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '0000470234'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: moderate
+  ground_truth_label: Moderate Steatosis (15-25%)
+  correct: false
+- patient_id: '9151660401'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9175532401'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9160992501'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9160625301'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9173915801'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9163130001'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9155208901'
+  classification: moderate
+  classification_label: Moderate Steatosis (15-25%)
+  ground_truth: severe
+  ground_truth_label: Severe Steatosis (>25%)
+  correct: false
+- patient_id: '9177972101'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9182173501'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9164358601'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9176992301'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '0000041105'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9185536601'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9161101201'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9168679501'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: false
+- patient_id: '9167804601'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9163088501'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: 0000759325
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9178299501'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9145643301'
+  classification: moderate
+  classification_label: Moderate Steatosis (15-25%)
+  ground_truth: severe
+  ground_truth_label: Severe Steatosis (>25%)
+  correct: false
+- patient_id: '9169043501'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: true
+- patient_id: '9181438501'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: false
+- patient_id: 0000895710
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9157103201'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: false
+- patient_id: '9167804501'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9170309401'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9151959801'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9166229901'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9188883501'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9154212001'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: true
+- patient_id: '9174817802'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9180956601'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9188752901'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: true
+- patient_id: '9165056801'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: false
+- patient_id: '9146422901'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: true
+- patient_id: '9171502101'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9168981701'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9161261301'
+  classification: mild
+  classification_label: Mild Steatosis (5-15%)
+  ground_truth: moderate
+  ground_truth_label: Moderate Steatosis (15-25%)
+  correct: false
+- patient_id: '9172900201'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '9175583402'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: healthy
+  ground_truth_label: Healthy (0-5%)
+  correct: true
+- patient_id: '0000024502'
+  classification: healthy
+  classification_label: Healthy (0-5%)
+  ground_truth: mild
+  ground_truth_label: Mild Steatosis (5-15%)
+  correct: false
+- patient_id: '9163429601'
+  classification: moderate
+  classification_label: Moderate Steatosis (15-25%)
+  ground_truth: moderate
+  ground_truth_label: Moderate Steatosis (15-25%)
+  correct: true
