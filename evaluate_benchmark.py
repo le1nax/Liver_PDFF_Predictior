@@ -35,10 +35,11 @@ def normalize_results(raw: dict) -> dict:
     return normalized
 
 
-def load_results(results_path: str) -> dict:
-    """Load benchmark results from JSON."""
+def load_results(results_path) -> dict:
+    """Load benchmark results from JSON or YAML."""
+    results_path = Path(results_path)
     with open(results_path, 'r') as f:
-        if str(results_path).endswith((".yaml", ".yml")):
+        if results_path.suffix in (".yaml", ".yml"):
             return yaml.safe_load(f)
         return json.load(f)
 
@@ -877,14 +878,28 @@ def main():
     parser.add_argument('--results', type=str,
                         default="/home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/outputs/scalar_regression_run/benchmark_evaluation/experiment_20260123_131810_experiment_20260123_131929/benchmark_results_scalar_regression.json",
                         help='Path to benchmark_results.json')
+    parser.add_argument('--outlier-threshold', type=float, default=10.0,
+                        help='Absolute error threshold (%%) for outlier detection. Default: 10.0')
+
+    # Toggle individual outputs (all enabled by default)
+    parser.add_argument('--no-scatter', action='store_true', help='Skip scatter plot')
+    parser.add_argument('--no-bland-altman', action='store_true', help='Skip Bland-Altman plot')
+    parser.add_argument('--no-error-distribution', action='store_true', help='Skip error distribution histogram')
+    parser.add_argument('--no-error-vs-gt', action='store_true', help='Skip error vs GT plot')
+    parser.add_argument('--no-classification', action='store_true', help='Skip classification evaluation')
+    parser.add_argument('--no-ranking', action='store_true', help='Skip ranking metrics')
+    parser.add_argument('--no-outliers', action='store_true', help='Skip outlier detection')
+    parser.add_argument('--no-pdf', action='store_true', help='Skip PDF report generation')
+    parser.add_argument('--no-metrics', action='store_true', help='Skip metrics table printout')
+
     args = parser.parse_args()
 
     # Convert percentage to fraction
     min_gt_ff = args.min_gt_ff / 100.0
 
-    # Paths - output goes next to the benchmark_results.json file
+    # Paths - output goes in the same directory as the results file
     results_path = Path(args.results)
-    output_dir = results_path.parent / "benchmark_evaluation"
+    output_dir = results_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Load results
@@ -904,33 +919,45 @@ def main():
         print(f"Patients: {total_patients} -> {filtered_patients} ({filtered_patients/total_patients*100:.1f}%)")
 
     # Print metrics table
-    print_metrics_table(results)
+    if not args.no_metrics:
+        print_metrics_table(results)
 
     # Generate plots (save as PNG)
     print("\nGenerating visualizations...")
-    plot_scatter_comparison(results, output_dir)
-    plot_bland_altman(results, output_dir)
-    plot_error_distribution(results, output_dir)
-    plot_error_vs_gt(results, output_dir)
+    if not args.no_scatter:
+        plot_scatter_comparison(results, output_dir)
+    if not args.no_bland_altman:
+        plot_bland_altman(results, output_dir)
+    if not args.no_error_distribution:
+        plot_error_distribution(results, output_dir)
+    if not args.no_error_vs_gt:
+        plot_error_vs_gt(results, output_dir)
 
     # Classification evaluation (save confusion matrix as PNG and capture text)
-    _, classification_text = evaluate_classification(results, output_dir)
+    classification_text = None
+    if not args.no_classification:
+        _, classification_text = evaluate_classification(results, output_dir)
 
     # Ranking evaluation (capture text)
-    ranking_text = evaluate_ranking(results)
+    ranking_text = None
+    if not args.no_ranking:
+        ranking_text = evaluate_ranking(results)
 
     # Identify outliers (capture text)
-    outlier_text = identify_outliers(results, threshold_pct=10.0)
+    outlier_text = None
+    if not args.no_outliers:
+        outlier_text = identify_outliers(results, threshold_pct=args.outlier_threshold)
 
     # Generate PDF report (pass captured text to avoid duplicate printing)
-    print("\nGenerating PDF report...")
-    generate_pdf_report(
-        results, output_dir,
-        min_gt_ff_pct=args.min_gt_ff,
-        classification_text=classification_text,
-        ranking_text=ranking_text,
-        outlier_text=outlier_text
-    )
+    if not args.no_pdf:
+        print("\nGenerating PDF report...")
+        generate_pdf_report(
+            results, output_dir,
+            min_gt_ff_pct=args.min_gt_ff,
+            classification_text=classification_text,
+            ranking_text=ranking_text,
+            outlier_text=outlier_text
+        )
 
     print(f"\nAll outputs saved to: {output_dir}")
 

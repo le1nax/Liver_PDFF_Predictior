@@ -1,0 +1,45 @@
+# Configuration file for scalar regression benchmarking
+
+# Experiment directory containing checkpoint_best.pth
+# Can be absolute or relative to repo root. Also checks under outputs/scalar_regression_run/
+experiment: "outputs/scalar_regression_run/experiment_20260223_133214"
+
+# Checkpoint filename inside the experiment directory
+checkpoint_name: "checkpoint_best.pth"
+
+# Model version to use for inference
+# Options: "v2" (default, model_scalar_v2.py), "v1" (model_scalar.py), "old" (old_model.py)
+model_version: "v2"
+
+# Path to data splits JSON file
+# Default: looks for the split file inside the experiment directory first,
+# then falls back to the one in data_dir
+# "outputs/scalar_regression_run/experiment_20260129_150431/data_splits_fatassigned.json"
+splits_file: null
+
+# Output path for benchmark results YAML (null = auto-generate under experiment dir)
+output: /home/homesOnMaster/dgeiger/repos/Liver_FF_Predictor/outputs/scalar_regression_run/benchmark_evaluation/experiment_20260223_133214_newsplits"
+
+# Inference settings
+batch_size: 2
+num_workers: 2
+device: "cuda"
+
+# Evaluation settings
+evaluation:
+  # Minimum ground truth FF threshold (percentage). 0 = no filter.
+  min_gt_ff: 0.0
+
+  # Outlier detection threshold (absolute error in %)
+  outlier_threshold: 10.0
+
+  # Toggle individual plots and metrics (all enabled by default)
+  scatter: true
+  bland_altman: true
+  error_distribution: true
+  error_vs_gt: true
+  classification: true
+  ranking: false
+  outliers: true
+  metrics_table: true
+  pdf_report: true

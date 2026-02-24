@@ -130,6 +130,65 @@ def make_metrics_page(gt: np.ndarray, pred: np.ndarray):
     return fig
 
 
+def load_ff_lookup() -> dict:
+    """Load median FF values from study_test_set.yaml keyed by patient ID."""
+    test_set_path = Path(__file__).resolve().parent / 'test_data' / 'study_test_set.yaml'
+    if not test_set_path.exists():
+        return {}
+    with open(test_set_path, 'r') as f:
+        study = yaml.safe_load(f)
+    return {str(c['patient_id']): float(c['median_ff']) for c in study['cases']}
+
+
+def make_scatter_page(gt: np.ndarray, pred: np.ndarray, patient_ids: list):
+    """Strip plot of ground truth FF per predicted class, colored by correctness."""
+    ff_lookup = load_ff_lookup()
+    if not ff_lookup:
+        return None
+
+    gt_ff = []
+    pred_class = []
+    correct = []
+    for i, pid in enumerate(patient_ids):
+        if pid in ff_lookup:
+            gt_ff.append(ff_lookup[pid] * 100)
+            pred_class.append(pred[i])
+            correct.append(gt[i] == pred[i])
+
+    if not gt_ff:
+        return None
+
+    gt_ff = np.array(gt_ff)
+    pred_class = np.array(pred_class)
+    correct = np.array(correct)
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    # Jitter y positions
+    jitter = np.random.default_rng(42).uniform(-0.2, 0.2, size=len(gt_ff))
+
+    ax.scatter(gt_ff[correct], pred_class[correct] + jitter[correct],
+               c='#2e7d32', alpha=0.6, s=40, edgecolors='k', linewidths=0.3,
+               label='Correct', zorder=3)
+    ax.scatter(gt_ff[~correct], pred_class[~correct] + jitter[~correct],
+               c='#c62828', alpha=0.7, s=50, edgecolors='k', linewidths=0.3,
+               marker='x', label='Incorrect', zorder=4)
+
+    # Class boundary lines
+    thresholds = [5, 15, 25]
+    for t in thresholds:
+        ax.axvline(t, color='gray', linestyle='--', alpha=0.5, linewidth=0.8)
+
+    ax.set_yticks(range(N_CLASSES))
+    ax.set_yticklabels(CLASS_LABELS)
+    ax.set_xlabel('Ground Truth FF (%)', fontsize=12)
+    ax.set_ylabel('Classified As', fontsize=12)
+    ax.set_title('Classification vs Ground Truth FF', fontsize=14, fontweight='bold')
+    ax.legend(loc='upper left')
+    plt.tight_layout()
+    return fig
+
+
 def make_misclassified_page(gt: np.ndarray, pred: np.ndarray, patient_ids: list):
     wrong_mask = gt != pred
     if not np.any(wrong_mask):
@@ -201,6 +260,12 @@ def generate_report(yaml_path: str):
         pdf.savefig(fig, bbox_inches='tight')
         plt.close(fig)
 
+        # Scatter plot
+        fig = make_scatter_page(gt, pred, patient_ids)
+        if fig:
+            pdf.savefig(fig, bbox_inches='tight')
+            plt.close(fig)
+
         # Misclassified patients
         pages = make_misclassified_page(gt, pred, patient_ids)
         if pages:
@@ -214,7 +279,9 @@ def generate_report(yaml_path: str):
 
 def main():
     parser = argparse.ArgumentParser(description='Generate PDF report from study viewer results')
-    parser.add_argument('yaml_file', type=str, help='Path to study results YAML file')
+    default_yaml = str(Path(__file__).resolve().parent / 'results' / 'study_20260220_113311.yaml')
+    parser.add_argument('yaml_file', type=str, nargs='?', default=default_yaml,
+                        help='Path to study results YAML file')
     args = parser.parse_args()
     generate_report(args.yaml_file)
 

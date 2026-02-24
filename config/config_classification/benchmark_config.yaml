@@ -1,0 +1,42 @@
+# Configuration file for classification network benchmarking
+
+# Experiment directory containing checkpoint_best.pth
+# Can be absolute or relative to repo root. Also checks under outputs/classification_run/
+experiment: "experiment_20260223_124221"
+
+# Checkpoint filename inside the experiment directory
+checkpoint_name: "checkpoint_best.pth"
+
+# Path to data splits JSON file
+# Default: looks for the split file inside the experiment directory first,
+# then falls back to the one in data_dir
+splits_file: null
+
+# Output directory or file path for benchmark results YAML
+# If a directory (or no .yaml extension), results are saved inside it.
+# null = auto-generate under outputs/classification_run/benchmark_evaluation/<exp_name>/
+output: outputs/classification_run/benchmark_evaluation/experiment_20260223_124221_filtered_testset/
+
+# Inference settings
+batch_size: 1
+num_workers: 2
+device: "cuda"
+
+# Evaluation settings
+evaluation:
+  # Minimum ground truth FF threshold (percentage). 0 = no filter.
+  min_gt_ff: 0.0
+
+  # Outlier detection threshold (absolute error in %)
+  outlier_threshold: 10.0
+
+  # Toggle individual plots and metrics (all enabled by default)
+  scatter: false
+  bland_altman: false
+  error_distribution: false
+  error_vs_gt: false
+  classification: true
+  ranking: false
+  outliers: true
+  metrics_table: false
+  pdf_report: true

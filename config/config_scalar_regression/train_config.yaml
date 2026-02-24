@@ -18,16 +18,16 @@ data:
   ff_subdir: "fat_fraction_maps"
   mask_subdir: "liver_masks"
   mask_erosion: 3
-  normalize_t2: false
+  normalize_t2: true
   fat_sampling:
-    enabled: false
+    enabled: true
     bin_edges: [0.0, 0.1, 0.2, 1.0]
-    bin_probs: [0.7, 0.1, 0.1]
+    bin_probs: [0.7, 0.2, 0.1]
 
   fat_split:
     enabled: true
     bin_edges: [0.0, 0.05, 0.15, 0.25, 1.0]
-    split_file: "data_splits_fatassigned.json"
+    split_file: "data_splits_fatassigned_filtered.json"
     seed: 42
   train_ratio: 0.7
   val_ratio: 0.15
@@ -37,8 +37,8 @@ data:
 training:
   num_epochs: 120
   batch_size: 1
-  grad_accum_steps: 1
-  grad_accum_enabled: false
+  grad_accum_steps: 7
+  grad_accum_enabled: true
   num_workers: 2
   val_split: 0.2
   seed: 42
